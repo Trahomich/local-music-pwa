@@ -10,7 +10,7 @@
 
 Допущения архитектора:
 - Локальные каталоги и импорт через Files API должны продолжить работать; серверный источник добавляется к ним, а не заменяет их.
-- В Docker по умолчанию хостовый `./music` монтируется в `/music:ro`. Пользователь добавляет/повторно сканирует серверную библиотеку в настройках; автоматическое сканирование при каждом открытии не требуется.
+- В текущем Compose-развёртывании `player` делит network namespace с Yggdrasil-sidecar и доступен по его IPv6; хостовая директория по умолчанию `/data/music` (переопределяется `MUSIC_DIR`) монтируется в `/music:ro`. Пользователь добавляет/повторно сканирует серверную библиотеку в настройках; автоматическое сканирование при каждом открытии не требуется.
 - Сохраняем static adapter и текущий Netlify-вариант. Для Docker добавляется однопроцессный Node-сервер, который отдаёт уже собранный `build/` и API. Не внедряем adapter-node, отдельную СУБД или серверное пользовательское состояние.
 - Для минимального изменения аудиодвижка метаданные и воспроизведение используют существующие `File`/Blob: браузер скачивает серверный файл через API. HTTP Range обязателен для корректной раздачи, но перевод аудиодвижка на потоковый URL в эту цель не входит.
 
@@ -21,7 +21,7 @@
 - `server/`: production HTTP server, API и Vite middleware. Точка входа `server/index.ts`; Node 26 запускает TypeScript напрямую (только erasable syntax).
 - `src/lib/server-library/api.ts`: изоморфные типы API, расширения/MIME и чистые helpers без Node/DOM-зависимостей. Его создаёт задача backend; остальные импортируют, но не меняют без обсуждения.
 - `src/lib/server-library/`: браузерские fetch/helpers, если нужны; их создаёт frontend-задача, кроме `api.ts`.
-- `Dockerfile`, `.dockerignore`, `compose.yaml`: Docker-задача.
+- `Dockerfile`, `.dockerignore`, `docker-compose.yml`: Docker-задача.
 - `messages/ru.json`, регистрация локали: задача #2. Новые сообщения серверной библиотеки добавляет frontend-задача после #2 во **все** зарегистрированные локали; английский и русский тексты обязательно осмысленные, в остальных допускается английский fallback. Ключи и placeholders во всех файлах совпадают.
 - Тесты backend размещаются в `server/__tests__/`, frontend — в существующих `__tests__/` рядом с клиентскими модулями. Автор реализации не берёт задачу тестов своего модуля.
 - Общий `README.md` обновляет документационная задача; `.env.example` — Docker-задача.
@@ -31,10 +31,10 @@
 ## 3. Конфигурация и запуск
 
 Переменные:
-- `MUSIC_DIR`: абсолютный или относительный путь к читаемой директории. Пустое/отсутствующее значение отключает серверную библиотеку, но не сам плеер. Внутри контейнера всегда `/music`; в Compose одноимённая хостовая переменная по умолчанию `./music`.
-- `HOST`: адрес Node HTTP server, по умолчанию `0.0.0.0`.
+- `MUSIC_DIR`: абсолютный или относительный путь к читаемой директории. Пустое/отсутствующее значение отключает серверную библиотеку, но не сам плеер. Внутри контейнера всегда `/music`; в Compose одноимённая хостовая переменная по умолчанию `/data/music`.
+- `HOST`: адрес Node HTTP server, по умолчанию `0.0.0.0`; в Compose с Yggdrasil — `::` для IPv6.
 - `PORT`: порт внутри Node server, по умолчанию `3000`.
-- `SNAE_PORT`: только публикация порта Compose на хосте, по умолчанию `3000`.
+- `SNAE_PORT`: переопределяет `PORT` плеера в общей network namespace Yggdrasil, по умолчанию `3000`; host port отдельно не публикуется.
 - `PUBLIC_FALLBACK_PAGE` и `PUBLIC_GOAT_COUNTER_URL`: существующие build-time настройки; Docker build по умолчанию использует `/200.html` и пустой analytics URL.
 
 Команды:
@@ -135,9 +135,9 @@ export interface ServerFileEntity extends ServerFileDescriptor {
 ## 6. Docker и Docker Compose
 
 - Multi-stage `Dockerfile`: Node 26 + pnpm по lockfile, production build, затем минимальный runtime без devDependencies; `CMD ["node", "server/index.ts"]`, порт 3000, непривилегированный пользователь.
-- `compose.yaml`: один service `player`, `build: .`, `ports: "${SNAE_PORT:-3000}:3000"`, `MUSIC_DIR=/music`, `HOST=0.0.0.0`, `PORT=3000`, volume `"${MUSIC_DIR:-./music}:/music:ro"`, `restart: unless-stopped`, healthcheck на status endpoint.
+- `docker-compose.yml`: services `player` и `yggdrasil`. `player`: `build: .`, `network_mode: service:yggdrasil`, `depends_on: yggdrasil`, без `ports`, `MUSIC_DIR=/music`, `HOST=::`, `PORT=${SNAE_PORT:-3000}`, volume `"${MUSIC_DIR:-/data/music}:/music:ro"`, `restart: unless-stopped`, healthcheck на status endpoint через localhost. `yggdrasil` использует официальный image, `NET_ADMIN`, `/dev/net/tun` и конфигурацию из `./yggdrasil/`.
 - `.dockerignore` исключает `.git`, `.scratch`, `node_modules`, `.generated`, `build`, `.env`, локальную музыку и отчёты.
-- `docker compose up --build` должен поднять приложение без ручного `pnpm install` на хосте. Директория `./music` может быть создана пользователем заранее; отсутствие файлов в ней — не ошибка.
+- `docker compose up --build` должен поднять приложение без ручного `pnpm install` на хосте. Директория из `MUSIC_DIR` может быть создана пользователем заранее; отсутствие файлов в ней — не ошибка. Для browser UI через Yggdrasil требуется HTTPS: обычный HTTP на non-localhost не является secure context.
 
 ## 7. Проверка и готовность
 

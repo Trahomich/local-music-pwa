@@ -4,22 +4,26 @@
 #   docker compose up --build
 #
 # Переменные (задаются в окружении или .env рядом с этим файлом):
-#   SNAE_PORT — порт публикации плеера на хосте (по умолчанию 3000)
+#   SNAE_PORT — порт плеера в общей network namespace Yggdrasil (по умолчанию 3000)
 #   MUSIC_DIR — хостовая директория с музыкой (по умолчанию ./music),
 #               монтируется в контейнер read-only как /music
 
 services:
   player:
     build: .
-    ports:
-      - "${SNAE_PORT:-3000}:3000"
+    # Работаем в network namespace Yggdrasil: TUN-интерфейс находится именно там.
+    # Порты публиковать не нужно; сервис доступен по IPv6-адресу Yggdrasil.
+    network_mode: service:yggdrasil
+    depends_on:
+      - yggdrasil
     environment:
-      HOST: 0.0.0.0
-      PORT: 3000
+      # Yggdrasil использует IPv6; "::" также принимает IPv4 healthcheck на localhost.
+      HOST: "::"
+      PORT: "${SNAE_PORT:-3000}"
       MUSIC_DIR: /music
     volumes:
       # Только чтение: плеер никогда не изменяет файлы библиотеки
-      - /data/music:/music:ro"
+      - "${MUSIC_DIR:-/data/music}:/music:ro"
     restart: unless-stopped
     healthcheck:
       test:

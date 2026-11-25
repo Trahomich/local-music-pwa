@@ -84,14 +84,18 @@ mkdir -p ./music   # put your audio files here; an empty folder is fine
 docker compose up --build
 ```
 
-The player is at <http://localhost:3000>. The host folder `./music` is mounted read-only as `/music` inside the container, so the player cannot modify your files. Then add the server library in Settings as described above.
+The current Compose deployment also starts an Yggdrasil sidecar. The player shares its network namespace (`network_mode: service:yggdrasil`), because that is where the Yggdrasil TUN interface lives. No host port is published: open `http://[YGGDRASIL_IPV6]:3000` from another Yggdrasil node (IPv6 literals in URLs need brackets). Put your Yggdrasil configuration in `./yggdrasil/` before starting the services. To display the interface addresses, run `docker compose exec yggdrasil ip -6 addr`.
 
-Common overrides (environment variables in front of the command, or in an `.env` file next to `compose.yaml` — see [`.env.example`](.env.example)):
+The default host folder in this Compose file is `/data/music`; set `MUSIC_DIR` to override it (for example, `./music`). It is mounted read-only as `/music` inside the container, so the player cannot modify your files. Then add the server library in Settings as described above.
+
+Common overrides (environment variables in front of the command, or in an `.env` file next to `docker-compose.yml` — see [`.env.example`](.env.example)):
 
 ```
-SNAE_PORT=8080 docker compose up --build            # publish on host port 8080
+SNAE_PORT=8080 docker compose up --build            # listen on port 8080 in the Yggdrasil namespace
 MUSIC_DIR=/path/to/music docker compose up --build  # serve a different host folder
 ```
+
+Yggdrasil provides connectivity, but plain HTTP on a non-localhost address is still not a browser secure context. Use HTTPS for the remote UI; otherwise the browser may hide the app behind its unsupported-browser check even though the port is reachable.
 
 Without Compose:
 
@@ -107,13 +111,13 @@ The Compose service restarts unless stopped and health-checks the server library
 | Variable | Applies to | Default | Description |
 | --- | --- | --- | --- |
 | `MUSIC_DIR` | Server | _(unset)_ | Audio folder of the server library. For `pnpm start` / `pnpm run dev`: a path on that machine — unset or empty disables the server library. For Compose: a host folder mounted read-only to `/music` in the container. |
-| `HOST` | Server | `0.0.0.0` | Listen address of the Node server. |
+| `HOST` | Server | `0.0.0.0`; `::` in the Compose Yggdrasil setup | Listen address of the Node server. |
 | `PORT` | Server | `3000` | Port of the Node server. |
-| `SNAE_PORT` | Compose | `3000` | Host port the player is published on. |
+| `SNAE_PORT` | Compose | `3000` | Player port in the shared Yggdrasil network namespace. |
 | `PUBLIC_FALLBACK_PAGE` | Build time | `/200.html` in Docker | SPA fallback page of the static build. |
 | `PUBLIC_GOAT_COUNTER_URL` | Build time | _(empty)_ in Docker | GoatCounter analytics URL; empty disables analytics. |
 
-Build-time variables are read from `.env` for local builds and from `--build-arg` in Docker. Runtime variables come from the environment; Compose additionally reads an `.env` file next to `compose.yaml`.
+Build-time variables are read from `.env` for local builds and from `--build-arg` in Docker. Runtime variables come from the environment; Compose additionally reads an `.env` file next to `docker-compose.yml`.
 
 ### Server library API
 

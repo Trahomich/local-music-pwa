@@ -19,7 +19,7 @@ services:
       MUSIC_DIR: /music
     volumes:
       # Только чтение: плеер никогда не изменяет файлы библиотеки
-      - "${MUSIC_DIR:-./music}:/music:ro"
+      - /data/music:/music:ro"
     restart: unless-stopped
     healthcheck:
       test:
@@ -29,3 +29,14 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
+
+  yggdrasil:
+    image: ghcr.io/yggdrasil-network/yggdrasil-go:latest
+    container_name: yggdrasil
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ./yggdrasil:/etc/yggdrasil

@@ -32,11 +32,10 @@ services:
 
   yggdrasil:
     image: ghcr.io/yggdrasil-network/yggdrasil-go:latest
-    container_name: yggdrasil
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
     devices:
       - /dev/net/tun:/dev/net/tun
     volumes:
-      - ./yggdrasil:/etc/yggdrasil
+      - ./yggdrasil:/etc/yggdrasil-network

@@ -1,6 +1,12 @@
 import { getDatabase } from '#lib/db/database.ts'
-import type { FileEntity } from '#lib/helpers/file-system.ts'
+import { type FileEntity, isServerFileEntity } from '#lib/helpers/file-system.ts'
 import { isAndroid, isChromiumBased } from '#lib/helpers/utils/ua.ts'
+import type { ServerFileEntity } from '#lib/library/types.ts'
+import { getAudioMimeType } from '#lib/server-library/api.ts'
+import {
+	fetchServerLibraryFileBlob,
+	ServerLibraryRequestError,
+} from '#lib/server-library/client.ts'
 
 /** @public */
 export type FileLoadFailReason = 'permission-denied' | 'not-found' | 'error'
@@ -52,7 +58,7 @@ const resolveAndroidWorkaround = async (
 ): Promise<File | null> => {
 	const db = await getDatabase()
 	const dir = await db.get('directories', directoryId)
-	if (!dir) {
+	if (!dir || dir.kind === 'server') {
 		return null
 	}
 
@@ -71,8 +77,27 @@ interface ResolveTrackFileOptions {
 	askPermission: boolean
 }
 
+const resolveServerFile = async (entity: ServerFileEntity): Promise<ResolveResult> => {
+	try {
+		const blob = await fetchServerLibraryFileBlob(entity.path)
+		const file = new File([blob], entity.name, {
+			type: getAudioMimeType(entity.name) ?? blob.type,
+			lastModified: entity.lastModified,
+		})
+
+		return { status: 'loaded', file }
+	} catch (error) {
+		if (error instanceof ServerLibraryRequestError && error.code === 'FILE_NOT_FOUND') {
+			return { status: 'not-found' }
+		}
+
+		console.error('[resolveTrackFile] server file', error)
+		return { status: 'error' }
+	}
+}
+
 /**
- * Resolves a FileEntity (FileSystemFileHandle, legacy File, etc.) to a File.
+ * Resolves a FileEntity (FileSystemFileHandle, legacy File, server file, etc.) to a File.
  * Handles permission prompts and so on.
  * @public
  */
@@ -80,6 +105,11 @@ export const resolveTrackFile = async (
 	options: ResolveTrackFileOptions,
 ): Promise<ResolveResult> => {
 	const { directoryId, entity, askPermission } = options
+
+	if (isServerFileEntity(entity)) {
+		return resolveServerFile(entity)
+	}
+
 	try {
 		let file: File | null = null
 

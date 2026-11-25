@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import type { Plugin } from 'vite'
 
@@ -41,15 +41,38 @@ export const logChunkSizePlugin = (): Plugin => ({
 			return { jsInfo, totalInfo }
 		}
 
-		setTimeout(async () => {
-			const { jsInfo, totalInfo } = await dirSize('./build/_app/immutable')
-			console.info('Size of JS chunks:', jsInfo.size / 1024, 'KB. Files count:', jsInfo.count)
-			console.info(
-				'Size of all files:',
-				totalInfo.size / 1024,
-				'KB. Files count:',
-				totalInfo.count,
-			)
-		}, 2000)
+		// The adapter writes ./build after the client bundle, and on slow machines that
+		// takes longer than any fixed delay — poll for it instead of guessing. Logging
+		// chunk sizes must never fail the build, so every error here is swallowed.
+		const directory = './build/_app/immutable'
+		const deadline = Date.now() + 60_000
+		const poll = async () => {
+			try {
+				if (!existsSync(directory)) {
+					if (Date.now() < deadline) {
+						setTimeout(() => void poll(), 250)
+					}
+					return
+				}
+
+				const { jsInfo, totalInfo } = await dirSize(directory)
+				console.info(
+					'Size of JS chunks:',
+					jsInfo.size / 1024,
+					'KB. Files count:',
+					jsInfo.count,
+				)
+				console.info(
+					'Size of all files:',
+					totalInfo.size / 1024,
+					'KB. Files count:',
+					totalInfo.count,
+				)
+			} catch {
+				// Ignored: chunk size logging is best-effort only
+			}
+		}
+
+		void poll()
 	},
 })

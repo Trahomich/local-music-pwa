@@ -1,0 +1,31 @@
+# Snae Player — Docker Compose (контракт: CONTRACTS.md §6)
+#
+# Запуск без Node/pnpm на хосте:
+#   docker compose up --build
+#
+# Переменные (задаются в окружении или .env рядом с этим файлом):
+#   SNAE_PORT — порт публикации плеера на хосте (по умолчанию 3000)
+#   MUSIC_DIR — хостовая директория с музыкой (по умолчанию ./music),
+#               монтируется в контейнер read-only как /music
+
+services:
+  player:
+    build: .
+    ports:
+      - "${SNAE_PORT:-3000}:3000"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      MUSIC_DIR: /music
+    volumes:
+      # Только чтение: плеер никогда не изменяет файлы библиотеки
+      - "${MUSIC_DIR:-./music}:/music:ro"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/server-library/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3

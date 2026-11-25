@@ -7,7 +7,7 @@ export default defineConfig(async (configEnv) =>
 		defineConfig({
 			test: {
 				environment: 'happy-dom',
-				exclude: [...defaultExclude, '.generated/**', 'build/**'],
+				exclude: [...defaultExclude, '.generated/**', 'build/**', '.scratch/**'],
 			},
 		}),
 	),

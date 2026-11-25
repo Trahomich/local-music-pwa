@@ -23,6 +23,16 @@ export const scanTracks = async (options: TracksScanOptions): Promise<void> => {
 		})
 	})
 
+	if (result.error) {
+		snackbar({
+			id: snackbarId,
+			message: m.settingsScanFailed(),
+			duration: 8000,
+		})
+
+		return
+	}
+
 	if (result.newlyImported === 0) {
 		snackbar({
 			id: snackbarId,

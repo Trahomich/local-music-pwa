@@ -58,7 +58,8 @@ describe('QueueStore deterministic model', () => {
 		}
 	})
 
-	it('matches the reference model for generated command sequences', () => {
+	// Под нагрузкой полного прогона занимает ~7 с при лимите по умолчанию 5 с
+	it('matches the reference model for generated command sequences', { timeout: 30_000 }, () => {
 		fc.assert(
 			fc.property(queueCommandSequences, (commands) => {
 				const randomSpy = vi.spyOn(Math, 'random')

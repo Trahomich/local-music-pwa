@@ -1,4 +1,5 @@
 import { getDatabase } from '#lib/db/database.ts'
+import type { LocalDirectory } from '#lib/library/types.ts'
 
 export interface DirectoryNeedingPermission {
 	name: string
@@ -14,8 +15,12 @@ const dbGetDirectoriesNeedingPermission = async () => {
 	const db = await getDatabase()
 	const directories = await db.getAll('directories')
 
+	const localDirectories = directories.filter(
+		(dir): dir is LocalDirectory => dir.kind !== 'server',
+	)
+
 	const dirsWithPermissions = await Promise.all(
-		directories.map(async (dir) => ({
+		localDirectories.map(async (dir) => ({
 			...dir,
 			mode: await dir.handle.queryPermission({ mode: 'read' }),
 		})),

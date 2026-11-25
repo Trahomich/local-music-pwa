@@ -1,16 +1,17 @@
+import type { ServerFileEntity } from '#lib/library/types.ts'
+import { isSupportedAudioFileName } from '#lib/server-library/api.ts'
+
 export const isFileSystemAccessSupported: boolean = 'showDirectoryPicker' in globalThis
 
-export type FileEntity = File | FileSystemFileHandle
+/** Entities backed by the local file system (or legacy in-memory files). */
+export type LocalFileEntity = File | FileSystemFileHandle
 
-const supportedExtensions = ['aac', 'mp3', 'ogg', 'wav', 'flac', 'm4a', 'opus', 'webm']
-const supportedExtensionsWithDot = supportedExtensions.map((ext) => `.${ext}`)
+export type FileEntity = LocalFileEntity | ServerFileEntity
 
-const isSupportedFile = (fileName: string): boolean => {
-	// On Windows .MP3 and .mp3 are both valid file extensions
-	const fileNameLower = fileName.toLowerCase()
+export const isServerFileEntity = (entity: FileEntity): entity is ServerFileEntity =>
+	'kind' in entity && entity.kind === 'server'
 
-	return supportedExtensionsWithDot.some((ext) => fileNameLower.endsWith(ext))
-}
+const isSupportedFile = (fileName: string): boolean => isSupportedAudioFileName(fileName)
 
 export const getFileHandlesRecursively = async (
 	directory: FileSystemDirectoryHandle,

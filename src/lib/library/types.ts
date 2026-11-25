@@ -1,4 +1,5 @@
 import type { FileEntity } from '#lib/helpers/file-system.ts'
+import type { ServerFileDescriptor } from '#lib/server-library/api.ts'
 
 export type LibraryStoreName = 'tracks' | 'albums' | 'artists' | 'playlists'
 
@@ -9,6 +10,18 @@ export type LibraryStoreName = 'tracks' | 'albums' | 'artists' | 'playlists'
  * where directories were not used `FileSystemHandle`.
  */
 export const LEGACY_NO_NATIVE_DIRECTORY = -1
+
+/**
+ * Singleton directory id of the server library source.
+ * Server tracks keep their full relative server path in `fileName`,
+ * so the `[directory, fileName]` index stays unique per file.
+ */
+export const SERVER_DIRECTORY_ID = -2
+
+/** A server library file stored on a track. Serialized as a plain object in IndexedDB. */
+export interface ServerFileEntity extends ServerFileDescriptor {
+	kind: 'server'
+}
 
 /** Special type of playlist which user cannot modify */
 export const FAVORITE_PLAYLIST_ID = -1
@@ -120,7 +133,16 @@ export interface PlayHistoryEntry {
 	playedAt: number
 }
 
-export interface Directory {
+export interface LocalDirectory {
 	id: number
 	handle: FileSystemDirectoryHandle
+	/** Records written before the server library existed have no `kind`. */
+	kind?: 'local'
 }
+
+export interface ServerDirectory {
+	id: typeof SERVER_DIRECTORY_ID
+	kind: 'server'
+}
+
+export type Directory = LocalDirectory | ServerDirectory

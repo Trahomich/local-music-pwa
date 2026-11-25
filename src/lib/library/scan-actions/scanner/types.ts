@@ -1,4 +1,5 @@
-import type { FileEntity } from '#lib/helpers/file-system.ts'
+import type { LocalFileEntity } from '#lib/helpers/file-system.ts'
+import type { SERVER_DIRECTORY_ID } from '#lib/library/types.ts'
 
 export interface TracksScanResult {
 	/** Count of many tracks were newly added */
@@ -7,6 +8,8 @@ export interface TracksScanResult {
 	current: number
 	/** Total count of tracks */
 	total: number
+	/** The scan aborted before completion, e.g. the server listing could not be fetched */
+	error?: boolean
 }
 
 export interface TracksScanMessage {
@@ -21,8 +24,12 @@ export type TracksScanOptions =
 			dirId: number
 			dirHandle: FileSystemDirectoryHandle
 	  }
+	| {
+			action: 'server-directory-add' | 'server-directory-rescan'
+			dirId: typeof SERVER_DIRECTORY_ID
+	  }
 	// Used in the browsers which do not support `showDirectoryPicker`
 	| {
 			action: 'legacy-files-add'
-			files: FileEntity[]
+			files: LocalFileEntity[]
 	  }

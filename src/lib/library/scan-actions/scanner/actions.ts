@@ -1,5 +1,10 @@
 import { getDatabase } from '#lib/db/database.ts'
-import { type FileEntity, getFileHandlesRecursively } from '#lib/helpers/file-system.ts'
+import {
+	type FileEntity,
+	getFileHandlesRecursively,
+	isServerFileEntity,
+	type LocalFileEntity,
+} from '#lib/helpers/file-system.ts'
 import { sha256Hex } from '#lib/helpers/hash.ts'
 import { SerialQueue } from '#lib/helpers/serial-queue.ts'
 import { dbRemoveTracks } from '#lib/library/remove.ts'
@@ -7,8 +12,11 @@ import {
 	CURRENT_METADATA_VERSION,
 	type ImageRecord,
 	LEGACY_NO_NATIVE_DIRECTORY,
+	type ServerFileEntity,
 	type Track,
 } from '#lib/library/types.ts'
+import { getAudioMimeType, type ServerFileDescriptor } from '#lib/server-library/api.ts'
+import { fetchServerLibraryFileBlob, fetchServerLibraryFiles } from '#lib/server-library/client.ts'
 import { createImageRecord } from './steps/create-image-record.ts'
 import { dbImportTrack } from './steps/import-track.ts'
 import { parseTrackMetadata } from './steps/parse-track-metadata.ts'
@@ -21,6 +29,8 @@ interface TrackEnqueueOptions {
 	unwrappedFile: File
 	file: FileEntity
 	directoryId: number
+	/** Overrides the stored `fileName`; server tracks keep their full relative path there */
+	fileName?: string
 	/** In cases when track already was imported */
 	trackId?: number
 	uuid?: string
@@ -108,7 +118,7 @@ class TrackProcessor {
 								primaryColor: artwork?.primaryColor,
 								file: options.file,
 								directory: options.directoryId,
-								fileName: options.file.name,
+								fileName: options.fileName ?? options.file.name,
 								scannedAt: options.scannedAt,
 								uuid: options.uuid ?? crypto.randomUUID(),
 							},
@@ -202,7 +212,7 @@ const findTrackByFileHandle = async (handle: FileSystemFileHandle, tracks: Track
 	return null
 }
 
-const findTrackByMixedFileEntity = async (handle: FileEntity, tracks: Track[]) => {
+const findTrackByMixedFileEntity = async (handle: LocalFileEntity, tracks: Track[]) => {
 	for (const track of tracks) {
 		const existingFile = track.file
 		// If file name is changed we can be sure it's not the same file anymore
@@ -234,7 +244,7 @@ const findTrackByMixedFileEntity = async (handle: FileEntity, tracks: Track[]) =
 	return null
 }
 
-const scanExistingDirectory = async (handles: FileEntity[], directoryId: number) => {
+const scanExistingDirectory = async (handles: LocalFileEntity[], directoryId: number) => {
 	const db = await getDatabase()
 
 	const tracker = new StatusTracker(handles.length, 'SCAN_EXISTING_DIR')
@@ -316,7 +326,7 @@ const scanExistingDirectory = async (handles: FileEntity[], directoryId: number)
 	tracker.sendMsg(true)
 }
 
-const scanNewDirectory = async (handles: FileEntity[], directoryId: number) => {
+const scanNewDirectory = async (handles: LocalFileEntity[], directoryId: number) => {
 	const tracker = new StatusTracker(handles.length, 'SCAN_NEW_DIR')
 	const processor = new TrackProcessor(tracker)
 	const scannedAt = Date.now()
@@ -343,6 +353,99 @@ const scanNewDirectory = async (handles: FileEntity[], directoryId: number) => {
 	tracker.sendMsg(true)
 }
 
+const toServerFileEntity = (descriptor: ServerFileDescriptor): ServerFileEntity => ({
+	kind: 'server',
+	path: descriptor.path,
+	name: descriptor.name,
+	size: descriptor.size,
+	lastModified: descriptor.lastModified,
+})
+
+const downloadServerFile = async (descriptor: ServerFileDescriptor): Promise<File> => {
+	const blob = await fetchServerLibraryFileBlob(descriptor.path)
+
+	return new File([blob], descriptor.name, {
+		type: getAudioMimeType(descriptor.name) ?? blob.type,
+		lastModified: descriptor.lastModified,
+	})
+}
+
+const isServerTrackUnchanged = (track: Track, descriptor: ServerFileDescriptor): boolean =>
+	track.metadataVersion === CURRENT_METADATA_VERSION &&
+	isServerFileEntity(track.file) &&
+	track.file.size === descriptor.size &&
+	track.file.lastModified === descriptor.lastModified
+
+/**
+ * Scans the server library. The initial add and rescans share one path:
+ * existing tracks are matched by their full relative path, unchanged files
+ * skip re-parsing, and tracks whose path disappeared from the listing are
+ * removed only after the listing was fully processed.
+ */
+const scanServerDirectory = async (descriptors: ServerFileDescriptor[], directoryId: number) => {
+	const db = await getDatabase()
+	const existingTracks = await db.getAllFromIndex('tracks', 'directory', directoryId)
+	const existingTracksByPath = new Map(existingTracks.map((track) => [track.fileName, track]))
+
+	const tracker = new StatusTracker(descriptors.length, 'SCAN_SERVER_DIR')
+	const scannedTracksIds = new Set<number>()
+	const processor = new TrackProcessor(tracker, (trackId) => {
+		scannedTracksIds.add(trackId)
+	})
+
+	const scannedAt = Date.now()
+
+	for (const descriptor of descriptors) {
+		tracker.current += 1
+
+		try {
+			const existingTrack = existingTracksByPath.get(descriptor.path)
+			// The path is confirmed by the successful listing, so the previous
+			// record must survive a failed re-import; only paths missing from
+			// the listing are removed after the scan.
+			if (existingTrack) {
+				scannedTracksIds.add(existingTrack.id)
+			}
+
+			if (existingTrack && isServerTrackUnchanged(existingTrack, descriptor)) {
+				scannedTracksIds.add(existingTrack.id)
+				tracker.sendMsg(false)
+
+				continue
+			}
+
+			const unwrappedFile = await downloadServerFile(descriptor)
+
+			await processor.parseAndEnqueue({
+				unwrappedFile,
+				file: toServerFileEntity(descriptor),
+				fileName: descriptor.path,
+				directoryId,
+				trackId: existingTrack?.id,
+				uuid: existingTrack?.uuid,
+				scannedAt,
+			})
+		} catch {
+			// we ignore errors and just move on to the next track.
+		}
+	}
+
+	await processor.drain()
+
+	// After importing is done, we remove tracks that were not scanned
+	// meaning their files no longer exist on the server
+	const tracksIdsInDirectory = await db.getAllKeysFromIndex('tracks', 'directory', directoryId)
+	const tracksToRemove: number[] = []
+	for (const trackId of tracksIdsInDirectory) {
+		if (!scannedTracksIds.has(trackId)) {
+			tracksToRemove.push(trackId)
+		}
+	}
+	await dbRemoveTracks(tracksToRemove).catch(console.warn)
+
+	tracker.sendMsg(true)
+}
+
 export const workerAction = async (options: TracksScanOptions) => {
 	if (options.action === 'directory-add') {
 		const handles = await getFileHandlesRecursively(options.dirHandle)
@@ -354,6 +457,15 @@ export const workerAction = async (options: TracksScanOptions) => {
 	if (options.action === 'directory-rescan') {
 		const handles = await getFileHandlesRecursively(options.dirHandle)
 		await scanExistingDirectory(handles, options.dirId)
+
+		return
+	}
+
+	if (options.action === 'server-directory-add' || options.action === 'server-directory-rescan') {
+		// The listing is fetched before any database write: on failure existing
+		// records stay untouched and the worker reports the error to the UI.
+		const descriptors = await fetchServerLibraryFiles()
+		await scanServerDirectory(descriptors, options.dirId)
 
 		return
 	}

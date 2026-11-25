@@ -15,11 +15,14 @@
 		checkNewDirectoryStatus,
 		importLegacyFiles,
 		importNewDirectory,
+		importServerDirectory,
 		removeDirectory,
 		replaceDirectories,
 		rescanDirectory,
+		rescanServerDirectory,
 	} from '#lib/library/scan-actions/directories.ts'
-	import type { Directory } from '#lib/library/types.ts'
+	import { type LocalDirectory, SERVER_DIRECTORY_ID } from '#lib/library/types.ts'
+	import { fetchServerLibraryStatus } from '#lib/server-library/client.ts'
 	import type { DirectoryWithCount } from '../+page.ts'
 
 	interface Props {
@@ -30,21 +33,48 @@
 	const { disabled, directories }: Props = $props()
 
 	interface ReparentDirectory {
-		childDirs: Directory[]
+		childDirs: LocalDirectory[]
 		newDirHandle: FileSystemDirectoryHandle
 	}
 
 	const isAndroidPlatform = isAndroid()
 	let reparentDirectory = $state<ReparentDirectory | null>(null)
 
+	type ServerLibraryStatus = 'loading' | 'enabled' | 'disabled' | 'unavailable'
+	let serverLibraryStatus = $state<ServerLibraryStatus>('loading')
+
+	$effect(() => {
+		fetchServerLibraryStatus()
+			.then((status) => {
+				serverLibraryStatus = status.enabled ? 'enabled' : 'disabled'
+			})
+			.catch(() => {
+				serverLibraryStatus = 'unavailable'
+			})
+	})
+
+	const hasServerDirectory = $derived(
+		directories.some((dir) => !dir.legacy && dir.kind === 'server'),
+	)
+	const showAddServerLibrary = $derived(serverLibraryStatus === 'enabled' && !hasServerDirectory)
+
+	const addServerLibraryHandler = () => {
+		trackEvent('action-add-server-library')
+		void importServerDirectory()
+	}
+
 	const addNewDirectoryHandler = async () => {
 		const directory = await showDirectoryPicker({
 			mode: 'read',
 		})
 
-		let childDirectories: Directory[] = []
+		let childDirectories: LocalDirectory[] = []
 		for (const existingDir of directories) {
 			if (existingDir.legacy) {
+				continue
+			}
+
+			if (existingDir.kind === 'server') {
 				continue
 			}
 
@@ -134,7 +164,13 @@
 
 			<div class="flex flex-col overflow-hidden">
 				<div class="truncate">
-					{dir.legacy ? m.settingsTracksInsideAppMemory() : dir.handle.name}
+					{#if dir.legacy}
+						{m.settingsTracksInsideAppMemory()}
+					{:else if dir.kind === 'server'}
+						{m.settingsServerLibraryTitle()}
+					{:else}
+						{dir.handle.name}
+					{/if}
 				</div>
 				<div class="text-body-sm">
 					{m.settingsDirectoriesTracksCount({ count: dir.count })}
@@ -142,26 +178,55 @@
 			</div>
 
 			<div class="ml-auto flex items-center gap-1">
-				<!-- Chromium on Android broke persisted handles https://issues.chromium.org/issues/499064852 -->
-				{#if !(dir.legacy || isAndroidPlatform)}
+				{#if dir.legacy}
+					<IconButton
+						{disabled}
+						icon="trashOutline"
+						tooltip={m.settingsDirRemove()}
+						onclick={() => {
+							void removeDirectory(dir.id)
+						}}
+					/>
+				{:else if dir.kind === 'server'}
 					<IconButton
 						{disabled}
 						icon="cached"
 						tooltip={m.settingsDirRescan()}
 						onclick={() => {
-							trackEvent('action-rescan-directory')
-							void rescanDirectory(dir.id, dir.handle)
+							trackEvent('action-rescan-server-library')
+							void rescanServerDirectory()
+						}}
+					/>
+					<IconButton
+						{disabled}
+						icon="trashOutline"
+						tooltip={m.settingsDirRemove()}
+						onclick={() => {
+							void removeDirectory(SERVER_DIRECTORY_ID)
+						}}
+					/>
+				{:else}
+					<!-- Chromium on Android broke persisted handles https://issues.chromium.org/issues/499064852 -->
+					{#if !isAndroidPlatform}
+						<IconButton
+							{disabled}
+							icon="cached"
+							tooltip={m.settingsDirRescan()}
+							onclick={() => {
+								trackEvent('action-rescan-directory')
+								void rescanDirectory(dir.id, dir.handle)
+							}}
+						/>
+					{/if}
+					<IconButton
+						{disabled}
+						icon="trashOutline"
+						tooltip={m.settingsDirRemove()}
+						onclick={() => {
+							void removeDirectory(dir.id)
 						}}
 					/>
 				{/if}
-				<IconButton
-					{disabled}
-					icon="trashOutline"
-					tooltip={m.settingsDirRemove()}
-					onclick={() => {
-						void removeDirectory(dir.id)
-					}}
-				/>
 			</div>
 		</li>
 	{/each}
@@ -171,8 +236,17 @@
 		{:else}
 			{@render addButton(m.settingsImportDirectory(), importLegacyFilesHandler)}
 		{/if}
+		{#if showAddServerLibrary}
+			{@render addButton(m.settingsServerLibraryAdd(), addServerLibraryHandler)}
+		{/if}
 	</li>
 </ul>
+
+{#if hasServerDirectory || showAddServerLibrary}
+	<p class="mt-3 text-body-sm text-onSurfaceVariant">
+		{m.settingsServerLibraryDescription()}
+	</p>
+{/if}
 
 {#snippet directoryName(name: string | undefined)}
 	<span class="inline-flex h-[--spacing(4.125)] w-fit items-center gap-1 text-tertiary">

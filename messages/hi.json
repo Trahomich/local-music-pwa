@@ -150,7 +150,7 @@
 
 	"settingsAddDirectory": "निर्देशिका जोड़ें",
 
-	"settingsAllDataLocal": "सभी डेटा आपके डिवाइस पर रखा जाता है",
+	"settingsAllDataLocal": "Playlists, favorites, history and settings always stay on this device",
 	"settingsAppearance": "दिखावट",
 	"settingsApplicationTheme": "एप्लिकेशन थीम",
 	"settingsColorPick": "रंग चुनें",
@@ -189,9 +189,13 @@
 	"settingsPreservePitchDescription": "प्लेबैक गति बदलते समय आवाज़ों और वाद्ययंत्रों को उनके मूल स्वर पर रखता है",
 	"settingsPreservePitchGaplessDescription": "अंतरालरहित प्लेबैक सक्षम होने पर पिच बनाए रखने का विकल्प उपलब्ध नहीं है",
 	"settingsPrimaryColor": "एप्लिकेशन का प्राथमिक रंग",
+	"settingsScanFailed": "Scan failed. Make sure the music source is available and try again",
 	"settingsScanInProgress": "ट्रैक स्कैन हो रहे हैं। {total} में से {current}",
 	"settingsScanNewOrUpdatedTracks": "{newTracks} नए या अपडेट किए गए ट्रैक मिले",
 	"settingsScanNoNewTracks": "कोई नया ट्रैक नहीं मिला",
+	"settingsServerLibraryAdd": "Add server library",
+	"settingsServerLibraryDescription": "Streams music read-only from the server hosting this app — files are never uploaded, renamed or deleted",
+	"settingsServerLibraryTitle": "Server library",
 	"settingsThemeAuto": "स्वचालित",
 	"settingsThemeDark": "गहरा",
 	"settingsThemeLight": "हल्का",

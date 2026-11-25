@@ -11,7 +11,10 @@ self.addEventListener('message', async (event: MessageEvent<TracksScanOptions>) 
 	try {
 		await workerAction(options)
 	} catch (err) {
-		self.postMessage({ finished: true, count: { newlyImported: 0, current: 0, total: 0 } })
+		self.postMessage({
+			finished: true,
+			count: { newlyImported: 0, current: 0, total: 0, error: true },
+		})
 		console.error('[scanner worker]', err)
 	}
 })

@@ -3,17 +3,22 @@ import { type DatabaseChangeDetails, dispatchDatabaseChangedEvent } from '#lib/d
 import { lockDatabase } from '#lib/db/lock-database.ts'
 import { createUIAction } from '#lib/helpers/ui-action.ts'
 import { dbRemoveTracks } from '#lib/library/remove.ts'
-import type { Directory } from '#lib/library/types.ts'
+import {
+	type Directory,
+	type LocalDirectory,
+	SERVER_DIRECTORY_ID,
+	type ServerDirectory,
+} from '#lib/library/types.ts'
 import { scanTracks } from './scan-tracks.ts'
 
 export interface DirectoryStatus {
 	status: 'child' | 'existing' | 'parent'
-	existingDir: Directory
+	existingDir: LocalDirectory
 	newDirHandle: FileSystemDirectoryHandle
 }
 
 export const checkNewDirectoryStatus = async (
-	existingDir: Directory,
+	existingDir: LocalDirectory,
 	newDirHandle: FileSystemDirectoryHandle,
 ): Promise<DirectoryStatus | undefined> => {
 	const paths = await existingDir.handle.resolve(newDirHandle)
@@ -209,3 +214,45 @@ export const importLegacyFiles = createUIAction({
 	lockDatabase: true,
 	successMessage: false,
 })
+
+const dbImportServerDirectory = async (): Promise<void> => {
+	const db = await getDatabase()
+
+	// The server source is a singleton, so it is stored under an explicit id
+	// instead of the auto-increment one.
+	const serverDirectory: ServerDirectory = {
+		id: SERVER_DIRECTORY_ID,
+		kind: 'server',
+	}
+	await db.put('directories', serverDirectory)
+
+	dispatchDatabaseChangedEvent({
+		key: SERVER_DIRECTORY_ID,
+		storeName: 'directories',
+		operation: 'add',
+	})
+
+	await scanTracks({
+		action: 'server-directory-add',
+		dirId: SERVER_DIRECTORY_ID,
+	})
+}
+
+export const importServerDirectory = createUIAction({
+	action: dbImportServerDirectory,
+	lockDatabase: true,
+	successMessage: false,
+})
+
+export const rescanServerDirectory = async (): Promise<void> => {
+	try {
+		await lockDatabase(() =>
+			scanTracks({
+				action: 'server-directory-rescan',
+				dirId: SERVER_DIRECTORY_ID,
+			}),
+		)
+	} catch (error) {
+		snackbar.unexpectedError(error)
+	}
+}

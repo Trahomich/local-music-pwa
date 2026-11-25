@@ -150,7 +150,7 @@
 
 	"settingsAddDirectory": "ディレクトリを追加",
 
-	"settingsAllDataLocal": "すべてのデータはお使いのデバイスに保存されます",
+	"settingsAllDataLocal": "Playlists, favorites, history and settings always stay on this device",
 	"settingsAppearance": "外観",
 	"settingsApplicationTheme": "アプリケーションテーマ",
 	"settingsColorPick": "色を選択",
@@ -189,9 +189,13 @@
 	"settingsPreservePitchDescription": "再生速度を変更しても、声や楽器を元の音程のまま保ちます",
 	"settingsPreservePitchGaplessDescription": "ギャップレス再生が有効な間は、ピッチ維持オプションは利用できません",
 	"settingsPrimaryColor": "アプリケーションのメインカラー",
+	"settingsScanFailed": "Scan failed. Make sure the music source is available and try again",
 	"settingsScanInProgress": "トラックをスキャン中。{total} 件中 {current} 件",
 	"settingsScanNewOrUpdatedTracks": "{newTracks} 件の新規または更新されたトラックが見つかりました",
 	"settingsScanNoNewTracks": "新しいトラックは見つかりませんでした",
+	"settingsServerLibraryAdd": "Add server library",
+	"settingsServerLibraryDescription": "Streams music read-only from the server hosting this app — files are never uploaded, renamed or deleted",
+	"settingsServerLibraryTitle": "Server library",
 	"settingsThemeAuto": "自動",
 	"settingsThemeDark": "ダーク",
 	"settingsThemeLight": "ライト",

@@ -6,6 +6,7 @@ import { defineConfig, loadEnv, type UserConfig } from 'vite'
 import { createI18n } from './lib/vite-i18n/create-i18n.ts'
 import { imageMetadataPlugin } from './lib/vite-image-metadata.ts'
 import { logChunkSizePlugin } from './lib/vite-log-chunk-size.ts'
+import { serverLibraryPlugin } from './server/vite-plugin.ts'
 
 const env = loadEnv('production', process.cwd(), 'PUBLIC_')
 
@@ -38,7 +39,7 @@ export default defineConfig(async ({ command, isPreview }): Promise<UserConfig> 
 		inputDir: 'messages',
 		outputDir: './.generated/i18n',
 		baseLocale: 'en',
-		locales: ['en', 'lt', 'de', 'fr', 'es', 'hi', 'ja', 'zh-CN', 'zh-TW'],
+		locales: ['en', 'lt', 'de', 'fr', 'es', 'hi', 'ja', 'zh-CN', 'zh-TW', 'ru'],
 		localStorageKey: 'snae-locale',
 		isDev: command === 'serve' && !isPreview,
 	})
@@ -94,6 +95,7 @@ export default defineConfig(async ({ command, isPreview }): Promise<UserConfig> 
 		plugins: [
 			i18n.vitePlugin,
 			imageMetadataPlugin(),
+			serverLibraryPlugin(),
 			tailwindcss(),
 			sveltekit({
 				compilerOptions: {

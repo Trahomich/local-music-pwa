@@ -149,7 +149,7 @@
 
 	"settingsAddDirectory": "Ordner hinzufügen",
 
-	"settingsAllDataLocal": "Alle Daten bleiben lokal auf Ihrem Gerät",
+	"settingsAllDataLocal": "Playlists, favorites, history and settings always stay on this device",
 	"settingsAppearance": "Oberflächendesign",
 	"settingsApplicationTheme": "Erscheinungsbild",
 	"settingsColorPick": "Farbwahl",
@@ -188,9 +188,13 @@
 	"settingsPreservePitchDescription": "Hält Stimmen und Instrumente in ihrer ursprünglichen Tonlage, während sich die Wiedergabegeschwindigkeit ändert",
 	"settingsPreservePitchGaplessDescription": "Die Option 'Tonhöhe beibehalten' ist nicht verfügbar, während die nahtlose Wiedergabe aktiviert ist",
 	"settingsPrimaryColor": "Primärfarbe der App",
+	"settingsScanFailed": "Scan failed. Make sure the music source is available and try again",
 	"settingsScanInProgress": "Titel werden gescannt. {current} von {total}",
 	"settingsScanNewOrUpdatedTracks": "{newTracks} neue oder aktualisierte Titel gefunden",
 	"settingsScanNoNewTracks": "Keine neuen Titel gefunden",
+	"settingsServerLibraryAdd": "Add server library",
+	"settingsServerLibraryDescription": "Streams music read-only from the server hosting this app — files are never uploaded, renamed or deleted",
+	"settingsServerLibraryTitle": "Server library",
 	"settingsThemeAuto": "Auto",
 	"settingsThemeDark": "Dunkel",
 	"settingsThemeLight": "Hell",

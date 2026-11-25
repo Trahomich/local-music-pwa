@@ -74,6 +74,7 @@
 		{ name: 'JA 日本語', value: 'ja' },
 		{ name: 'ZH-CN 简体中文', value: 'zh-CN' },
 		{ name: 'ZH-TW 繁體中文', value: 'zh-TW' },
+		{ name: 'RU Русский', value: 'ru' },
 	]
 
 	const updateMainColor = debounce((value: string | null) => {

@@ -149,7 +149,7 @@
 
 	"settingsAddDirectory": "Pridėti katalogą",
 
-	"settingsAllDataLocal": "Visi duomenys išsaugomi jūsų įrenginyje",
+	"settingsAllDataLocal": "Playlists, favorites, history and settings always stay on this device",
 	"settingsAppearance": "Išvaizda",
 	"settingsApplicationTheme": "Programos tema",
 	"settingsColorPick": "Pasirinkti spalvą",
@@ -188,9 +188,13 @@
 	"settingsPreservePitchDescription": "Keičiant atkūrimo greitį, balsų ir instrumentų tonas išlieka originalus",
 	"settingsPreservePitchGaplessDescription": "Tono išlaikymo parinktis neprieinama, kai įjungtas nepertraukiamas atkūrimas",
 	"settingsPrimaryColor": "Pagrindinė programos spalva",
+	"settingsScanFailed": "Scan failed. Make sure the music source is available and try again",
 	"settingsScanInProgress": "Skenuojami kūriniai. {current} iš {total}",
 	"settingsScanNewOrUpdatedTracks": "Rasta {newTracks} naujų arba atnaujintų kūrinių",
 	"settingsScanNoNewTracks": "Naujų kūrinių nerasta",
+	"settingsServerLibraryAdd": "Add server library",
+	"settingsServerLibraryDescription": "Streams music read-only from the server hosting this app — files are never uploaded, renamed or deleted",
+	"settingsServerLibraryTitle": "Server library",
 	"settingsThemeAuto": "Automatinė",
 	"settingsThemeDark": "Tamsi",
 	"settingsThemeLight": "Šviesi",

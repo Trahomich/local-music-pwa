@@ -149,7 +149,7 @@
 
 	"settingsAddDirectory": "添加目录",
 
-	"settingsAllDataLocal": "所有数据都保存在您的设备上",
+	"settingsAllDataLocal": "Playlists, favorites, history and settings always stay on this device",
 	"settingsAppearance": "外观",
 	"settingsApplicationTheme": "应用主题",
 	"settingsColorPick": "选取颜色",
@@ -188,9 +188,13 @@
 	"settingsPreservePitchDescription": "在更改播放速度时，保持人声和乐器的原始音高不变",
 	"settingsPreservePitchGaplessDescription": "启用无缝播放时，保持音高选项不可用",
 	"settingsPrimaryColor": "应用主色",
+	"settingsScanFailed": "Scan failed. Make sure the music source is available and try again",
 	"settingsScanInProgress": "正在扫描曲目。{current}/{total}",
 	"settingsScanNewOrUpdatedTracks": "找到 {newTracks} 首新的或更新的曲目",
 	"settingsScanNoNewTracks": "未找到新的曲目",
+	"settingsServerLibraryAdd": "Add server library",
+	"settingsServerLibraryDescription": "Streams music read-only from the server hosting this app — files are never uploaded, renamed or deleted",
+	"settingsServerLibraryTitle": "Server library",
 	"settingsThemeAuto": "自动",
 	"settingsThemeDark": "深色",
 	"settingsThemeLight": "浅色",

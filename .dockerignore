@@ -1,0 +1,17 @@
+# VCS и локальное окружение
+.git
+.env
+
+# Локальные артефакты — в контейнере пересоздаются из lockfile и исходников
+node_modules
+.generated
+build
+
+# Черновики команды и отчёты (тестов, покрытия)
+.scratch
+coverage
+test-results
+
+# Локальная музыка пользователя никогда не попадает в образ:
+# в runtime она монтируется read-only через compose volume
+music

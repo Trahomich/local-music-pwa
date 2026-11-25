@@ -150,7 +150,7 @@
 
 	"settingsAddDirectory": "Add directory",
 
-	"settingsAllDataLocal": "All data is kept on your device",
+	"settingsAllDataLocal": "Playlists, favorites, history and settings always stay on this device",
 	"settingsAppearance": "Appearance",
 	"settingsApplicationTheme": "Application theme",
 	"settingsColorPick": "Pick color",
@@ -189,9 +189,13 @@
 	"settingsPreservePitchDescription": "Keeps voices and instruments at their original tone while changing playback speed",
 	"settingsPreservePitchGaplessDescription": "Preserve pitch option is not available while gapless playback is enabled",
 	"settingsPrimaryColor": "Application primary color",
+	"settingsScanFailed": "Scan failed. Make sure the music source is available and try again",
 	"settingsScanInProgress": "Scanning tracks. {current} of {total}",
 	"settingsScanNewOrUpdatedTracks": "Found {newTracks} new or updated tracks",
 	"settingsScanNoNewTracks": "No new tracks were found",
+	"settingsServerLibraryAdd": "Add server library",
+	"settingsServerLibraryDescription": "Streams music read-only from the server hosting this app — files are never uploaded, renamed or deleted",
+	"settingsServerLibraryTitle": "Server library",
 	"settingsThemeAuto": "Auto",
 	"settingsThemeDark": "Dark",
 	"settingsThemeLight": "Light",

@@ -14,7 +14,7 @@
 
 ```
 src/
-├── routes/            # (app) main app, (marketing) landing page, (assets) dynamic assets
+├── routes/            # (app) main app, root redirect, (assets) dynamic assets
 ├── lib/
 │   ├── components/    # Reusable UI components
 │   ├── audio/         # Web Audio playback engine (mediabunny, gapless, EQ)
@@ -129,7 +129,3 @@ Prefer self-documenting code — good names and structure over explanatory comme
 - **Components**: `PascalCase.svelte`
 - **Types**: `kebab-case.ts`
 - **Stores**: `kebab-case.svelte.ts`
-
-## Marketing Copy
-
-For landing-page edits under `src/routes/(marketing)/`, follow the colocated guidance in `src/routes/(marketing)/AGENTS.md` and `src/routes/(marketing)/TONE_OF_VOICE.md`.

@@ -12,12 +12,8 @@
 	setupAppViewTransitions(() => mainStore.isReducedMotion)
 
 	afterNavigate((nav) => {
-		let page = nav.to?.route?.id ?? 'unknown'
-		if (page === 'unknown' && nav.to?.url.pathname === '/') {
-			page = '/(marketing)'
-		}
-
-		trackPageView(page)
+		const routeId = nav.to?.route?.id ?? 'unknown'
+		trackPageView(routeId)
 	})
 
 	$effect(() => {

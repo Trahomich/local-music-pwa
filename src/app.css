@@ -123,7 +123,6 @@ html {
 	--bottom-overlay-height: 0px;
 	--app-header-height: calc(--spacing(16) + var(--safe-area-inset-top));
 	--app-max-content-width: --spacing(400);
-	--mktg-content-max-width: --spacing(300);
 }
 
 html.dark {
@@ -397,24 +396,6 @@ source {
 @layer components {
 	.link {
 		text-decoration: underline;
-	}
-
-	.mktg-content-width {
-		width: 100%;
-		max-width: var(--mktg-content-max-width);
-		padding-left: --spacing(6);
-		padding-right: --spacing(6);
-		margin-left: auto;
-		margin-right: auto;
-		align-items: center;
-		display: flex;
-		flex-direction: column;
-	}
-
-	.mktg-content-width-using-grid {
-		display: grid;
-		grid-template-columns: minmax(0, var(--mktg-content-max-width));
-		justify-content: center;
 	}
 
 	.card {

@@ -31,6 +31,7 @@ export const FAVORITE_PLAYLIST_UUID = 'favorites'
  * Used to represent unknown Artist/Album and other values inside database
  * Using ~ so when sorting items are always at the end
  */
+/** @public */
 export const UNKNOWN_ITEM = '~\0unknown'
 
 export type UnknownItem = typeof UNKNOWN_ITEM
@@ -44,8 +45,12 @@ export type UnknownItem = typeof UNKNOWN_ITEM
  *
  * v2: artwork moved out of tracks/albums into the content-addressed `images`
  * store referenced by `imageHash`.
+ *
+ * v3: legacy tag mojibake repaired on parse (Windows-1251/UTF-8 bytes mislabeled
+ * as ISO-8859-1), see `metadata-encoding.ts` `fixLegacyTagEncoding`.
  */
-export const CURRENT_METADATA_VERSION = 2
+/** @public */
+export const CURRENT_METADATA_VERSION = 3
 
 export type StringOrUnknownItem = (string & {}) | UnknownItem
 
@@ -54,6 +59,7 @@ interface BaseMusicItem {
 	name: string
 }
 
+/** @public */
 export interface ParsedTrackData {
 	name: string
 	album: StringOrUnknownItem

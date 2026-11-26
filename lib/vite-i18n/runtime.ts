@@ -5,6 +5,7 @@ import { CONTENT_BANNER } from './constants.ts'
 interface EmitRuntimeModuleOptions {
 	outputDir: string
 	baseLocale: string
+	defaultLocale: string
 	locales: string[]
 	localStorageKey: string
 }
@@ -17,6 +18,7 @@ export const emitRuntimeModule = async (options: EmitRuntimeModuleOptions) => {
 		`/** @public */ export type Locale = ${locales.map((locale) => `'${locale}'`).join(' | ')};`,
 		`/** @public */ export type BaseLocale = '${baseLocale}';`,
 		`/** @public */ export const BASE_LOCALE: BaseLocale = '${baseLocale}';`,
+		`/** @public */ export const DEFAULT_LOCALE: Locale = '${options.defaultLocale}';`,
 		`/** @public */ export const LOCALES: Locale[] = [${locales.map((locale) => `'${locale}'`).join(', ')}];`,
 		`/** @public */ const LOCAL_STORAGE_KEY = '${options.localStorageKey}';`,
 		'/** @public */ const isLocale = (locale: unknown): locale is Locale => LOCALES.includes(locale as Locale);',
@@ -28,7 +30,7 @@ export const emitRuntimeModule = async (options: EmitRuntimeModuleOptions) => {
 		};`,
 		`/** @public */ export const getLocale = (): Locale => {
 			const locale = localStorage.getItem(LOCAL_STORAGE_KEY);
-			return isLocale(locale) ? locale : BASE_LOCALE;
+			return isLocale(locale) ? locale : DEFAULT_LOCALE;
 		}`,
 	]
 

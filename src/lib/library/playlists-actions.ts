@@ -1,10 +1,18 @@
 import type { IDBPObjectStore } from 'idb'
+import type { UserStateAction } from '#lib/auth/api.ts'
+import { getCurrentUserId } from '#lib/auth/client.ts'
 import { type AppDB, getDatabase } from '#lib/db/database.ts'
 import { type DatabaseChangeDetails, dispatchDatabaseChangedEvent } from '#lib/db/events.ts'
 import { keyRangePrefix } from '#lib/db/key-range.ts'
 import { createUIAction } from '#lib/helpers/ui-action.ts'
 import { truncate } from '#lib/helpers/utils/text.ts'
 import type { Playlist, PlaylistEntry } from '#lib/library/types.ts'
+import {
+	applyServerActions,
+	loadServerTrackUuids,
+	resolveWirePlaylistUuid,
+} from '#lib/user-state/actions.ts'
+import { isServerTrackUuid } from '#lib/user-state/snapshot.ts'
 import { FAVORITE_PLAYLIST_ID } from './types.ts'
 
 export { FAVORITE_PLAYLIST_ID } from './types.ts'
@@ -14,6 +22,21 @@ export const dbCreatePlaylist = async (
 	description: string,
 	createdAt = Date.now(),
 ): Promise<number> => {
+	if (getCurrentUserId() !== null) {
+		// Server-first (§9): the playlist exists only after the server
+		// applied it and the returned snapshot was written locally.
+		const uuid = crypto.randomUUID()
+		await applyServerActions([
+			{ action: 'playlist-create', uuid, name, description, createdAt, updatedAt: createdAt },
+		])
+
+		const db = await getDatabase()
+		const playlist = await db.getFromIndex('playlists', 'uuid', uuid)
+		invariant(playlist, 'Created playlist is missing after the snapshot apply')
+
+		return playlist.id
+	}
+
 	const db = await getDatabase()
 
 	const newPlaylist: Omit<Playlist, 'id'> = {
@@ -59,6 +82,23 @@ const dbUpdatePlaylist = async (options: UpdatePlaylistOptions): Promise<void> =
 
 	const id = options.id
 
+	if (getCurrentUserId() !== null) {
+		const playlist = await db.get('playlists', id)
+		invariant(playlist, 'Playlist not found')
+
+		await applyServerActions([
+			{
+				action: 'playlist-update',
+				uuid: playlist.uuid,
+				name: options.name,
+				description: options.description,
+				updatedAt: Date.now(),
+			},
+		])
+
+		return
+	}
+
 	const tx = db.transaction('playlists', 'readwrite')
 	const existingPlaylist = await tx.store.get(id)
 
@@ -98,6 +138,19 @@ export const updatePlaylist = async (options: UpdatePlaylistOptions): Promise<bo
 
 export const dbRemovePlaylist = async (playlistId: number): Promise<void> => {
 	const db = await getDatabase()
+
+	if (getCurrentUserId() !== null) {
+		const playlist = await db.get('playlists', playlistId)
+		if (playlist === undefined) {
+			return
+		}
+
+		// The server cascades the delete to the playlist's entries (§9).
+		await applyServerActions([{ action: 'playlist-delete', uuid: playlist.uuid }])
+
+		return
+	}
+
 	const tx = db.transaction(['playlists', 'playlistEntries'], 'readwrite')
 	const entriesStore = tx.objectStore('playlistEntries')
 
@@ -208,11 +261,80 @@ interface BatchModifyPlaylistSelectionOptions {
 	playlistsIdsRemoveFrom: readonly number[]
 }
 
+/**
+ * Applies the selection through the server (§9): every (playlist, track)
+ * pair becomes one idempotent wire action in a single atomic batch. The
+ * returned snapshot already contains the resulting entries, so only
+ * local-only tracks additionally go through the plain local path — they
+ * never leave this device.
+ */
+const syncBatchModifyPlaylistsSelection = async (
+	options: BatchModifyPlaylistSelectionOptions,
+): Promise<boolean> => {
+	const { trackIds, playlistsIdsAddTo, playlistsIdsRemoveFrom } = options
+
+	const serverTrackUuids = await loadServerTrackUuids(trackIds)
+	const localTrackIds = trackIds.filter((trackId) => !serverTrackUuids.has(trackId))
+
+	const actions: UserStateAction[] = []
+
+	for (const trackUuid of serverTrackUuids.values()) {
+		for (const playlistId of playlistsIdsAddTo) {
+			if (playlistId === FAVORITE_PLAYLIST_ID) {
+				actions.push({ action: 'favorite-set', trackUuid, favorite: true })
+			} else {
+				const playlistUuid = await resolveWirePlaylistUuid(playlistId)
+				if (playlistUuid !== undefined) {
+					actions.push({
+						action: 'playlist-entry-add',
+						playlistUuid,
+						trackUuid,
+						addedAt: Date.now(),
+					})
+				}
+			}
+		}
+
+		for (const playlistId of playlistsIdsRemoveFrom) {
+			if (playlistId === FAVORITE_PLAYLIST_ID) {
+				actions.push({ action: 'favorite-set', trackUuid, favorite: false })
+			} else {
+				const playlistUuid = await resolveWirePlaylistUuid(playlistId)
+				if (playlistUuid !== undefined) {
+					actions.push({ action: 'playlist-entry-remove', playlistUuid, trackUuid })
+				}
+			}
+		}
+	}
+
+	let synced = false
+	if (actions.length > 0) {
+		await applyServerActions(actions as [UserStateAction, ...UserStateAction[]])
+		synced = true
+	}
+
+	let localChanged = false
+	if (localTrackIds.length > 0) {
+		localChanged = await dbBatchModifyPlaylistsSelection({
+			trackIds: localTrackIds,
+			playlistsIdsAddTo,
+			playlistsIdsRemoveFrom,
+		})
+	}
+
+	return synced || localChanged
+}
+
 export const dbBatchModifyPlaylistsSelection = async (
 	options: BatchModifyPlaylistSelectionOptions,
 ): Promise<boolean> => {
-	const store = await getPlaylistEntriesDatabaseStore()
 	const { trackIds, playlistsIdsAddTo, playlistsIdsRemoveFrom } = options
+
+	if (getCurrentUserId() !== null) {
+		return syncBatchModifyPlaylistsSelection(options)
+	}
+
+	const store = await getPlaylistEntriesDatabaseStore()
 
 	const allChanges: DatabaseChangeDetails[] = []
 	if (playlistsIdsRemoveFrom.length > 0) {
@@ -242,6 +364,32 @@ const dbRemoveTrackEntryFromPlaylist = async (playlistEntryId: number): Promise<
 	const entry = await db.get('playlistEntries', playlistEntryId)
 	invariant(entry)
 
+	if (getCurrentUserId() !== null) {
+		const track = await db.get('tracks', entry.trackId)
+
+		if (track !== undefined && isServerTrackUuid(track.uuid)) {
+			if (entry.playlistId === FAVORITE_PLAYLIST_ID) {
+				await applyServerActions([
+					{ action: 'favorite-set', trackUuid: track.uuid, favorite: false },
+				])
+			} else {
+				const playlist = await db.get('playlists', entry.playlistId)
+				invariant(playlist, 'Playlist not found')
+
+				await applyServerActions([
+					{
+						action: 'playlist-entry-remove',
+						playlistUuid: playlist.uuid,
+						trackUuid: track.uuid,
+					},
+				])
+			}
+
+			return
+		}
+		// Local-only entries stay local (§9) and use the plain path below.
+	}
+
 	await db.delete('playlistEntries', entry.id)
 
 	dispatchDatabaseChangedEvent({
@@ -258,6 +406,20 @@ export const removeTrackEntryFromPlaylist = createUIAction({
 })
 
 const dbAddTrackToFavorites = async (trackId: number): Promise<void> => {
+	if (getCurrentUserId() !== null) {
+		const db = await getDatabase()
+		const track = await db.get('tracks', trackId)
+		invariant(track, 'Track not found')
+
+		if (isServerTrackUuid(track.uuid)) {
+			await applyServerActions([
+				{ action: 'favorite-set', trackUuid: track.uuid, favorite: true },
+			])
+
+			return
+		}
+	}
+
 	const db = await getDatabase()
 
 	// Check if already exists to prevent duplicates
@@ -290,6 +452,20 @@ const dbAddTrackToFavorites = async (trackId: number): Promise<void> => {
 }
 
 const dbRemoveTrackFromFavorites = async (trackId: number): Promise<void> => {
+	if (getCurrentUserId() !== null) {
+		const db = await getDatabase()
+		const track = await db.get('tracks', trackId)
+		invariant(track, 'Track not found')
+
+		if (isServerTrackUuid(track.uuid)) {
+			await applyServerActions([
+				{ action: 'favorite-set', trackUuid: track.uuid, favorite: false },
+			])
+
+			return
+		}
+	}
+
 	const db = await getDatabase()
 
 	const entry = await db.getFromIndex('playlistEntries', 'playlistTrack', [

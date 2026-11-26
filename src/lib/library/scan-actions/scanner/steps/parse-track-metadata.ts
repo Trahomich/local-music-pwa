@@ -1,4 +1,5 @@
 import { parseBuffer } from 'music-metadata'
+import { fixLegacyTagEncoding } from '#lib/library/metadata-encoding.ts'
 import { CURRENT_METADATA_VERSION, type ParsedTrackData, UNKNOWN_ITEM } from '#lib/library/types.ts'
 
 // This limit is a bit arbitrary.
@@ -46,13 +47,14 @@ export const parseTrackMetadata = async (
 	const artists =
 		common.artists
 			?.flatMap((artist) => artist.split(artistSeparatorRegex))
-			.map((artist) => artist.trim()) ?? []
+			.map((artist) => fixLegacyTagEncoding(artist.trim())) ?? []
 
 	const trackData: ParsedTrackData = {
-		name: common.title || file.name,
-		album: common.album ?? UNKNOWN_ITEM,
+		// Tag text only: file names and JSON transport are proper Unicode and stay as-is.
+		name: common.title ? fixLegacyTagEncoding(common.title) : file.name,
+		album: common.album === undefined ? UNKNOWN_ITEM : fixLegacyTagEncoding(common.album),
 		artists: artists.length > 0 ? artists : [UNKNOWN_ITEM],
-		genre: common.genre || [],
+		genre: (common.genre || []).map(fixLegacyTagEncoding),
 		trackNo: common.track.no ?? 0,
 		trackOf: common.track.of ?? 0,
 		discNo: common.disk.no ?? 0,

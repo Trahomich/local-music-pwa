@@ -18,6 +18,7 @@
 	import { setDialogsStoreContext } from '#lib/stores/dialogs/use-store.ts'
 	import { PlayerStore } from '#lib/stores/player/player.svelte.ts'
 	import { setPlayerStoreContext } from '#lib/stores/player/use-store.ts'
+	import { startUserStateSync } from '#lib/user-state/sync.ts'
 	import { onViewTransitionPrepare } from '#lib/view-transitions.svelte.ts'
 	import { setupAppInstallPromptListeners } from './layout/app-install-prompt.ts'
 	import {
@@ -86,6 +87,13 @@
 
 	if (browser) {
 		void setupDirectoriesPermissionPrompt(directoriesPermissionSnackbar)
+	}
+
+	if (browser) {
+		// §9: pull the signed-in profile's playlists/favorites/history right
+		// after entering the app and keep pulling on focus + every 30 s.
+		// No-op in the local-only/static mode (getCurrentUserId() === null).
+		startUserStateSync()
 	}
 </script>
 

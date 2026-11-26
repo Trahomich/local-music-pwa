@@ -39,6 +39,7 @@ export default defineConfig(async ({ command, isPreview }): Promise<UserConfig> 
 		inputDir: 'messages',
 		outputDir: './.generated/i18n',
 		baseLocale: 'en',
+		defaultLocale: 'ru',
 		locales: ['en', 'lt', 'de', 'fr', 'es', 'hi', 'ja', 'zh-CN', 'zh-TW', 'ru'],
 		localStorageKey: 'snae-locale',
 		isDev: command === 'serve' && !isPreview,

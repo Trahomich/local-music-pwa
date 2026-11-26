@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { resolve } from 'node:path'
 import sirv from 'sirv'
+import { createAuthMiddleware } from './auth/middleware.ts'
 import { createServerLibraryMiddleware } from './library/middleware.ts'
 
 const host = process.env.HOST || '0.0.0.0'
@@ -27,6 +28,7 @@ const serveStatic = sirv(buildDir, {
 	...(fallbackPage === undefined ? {} : { single: fallbackPage }),
 })
 
+const authMiddleware = createAuthMiddleware()
 const serverLibraryMiddleware = createServerLibraryMiddleware()
 
 const handleRequest = (req: IncomingMessage, res: ServerResponse, error?: unknown): void => {
@@ -53,9 +55,23 @@ const handleRequest = (req: IncomingMessage, res: ServerResponse, error?: unknow
 	})
 }
 
-const server = createServer((req, res) => {
+const handleLibraryRequest = (req: IncomingMessage, res: ServerResponse): void => {
 	void serverLibraryMiddleware(req, res, (error?: unknown) => {
 		handleRequest(req, res, error)
+	}).catch((error: unknown) => {
+		handleRequest(req, res, error)
+	})
+}
+
+const server = createServer((req, res) => {
+	// Auth runs first: it answers /api/auth/*, /api/user-state*, /api/health
+	// and gates /api/server-library/* behind a valid session
+	void authMiddleware(req, res, (error?: unknown) => {
+		if (error !== undefined && error !== null) {
+			handleRequest(req, res, error)
+			return
+		}
+		handleLibraryRequest(req, res)
 	}).catch((error: unknown) => {
 		handleRequest(req, res, error)
 	})
@@ -68,4 +84,5 @@ server.listen(port, host, () => {
 			? '[server] Server library enabled (MUSIC_DIR is set)'
 			: '[server] Server library disabled (MUSIC_DIR is not set)',
 	)
+	console.info(`[server] Auth data directory: ${process.env.DATA_DIR ?? './.data'}`)
 })

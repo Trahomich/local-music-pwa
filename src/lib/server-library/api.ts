@@ -4,6 +4,7 @@
  * Shared by the Node backend (`server/`), the browser client and tests.
  * Must stay free of Node/DOM dependencies.
  */
+import type { ParsedTrackData } from '#lib/library/types.ts'
 
 /** @public */
 export const SERVER_LIBRARY_BASE_PATH = '/api/server-library'
@@ -22,6 +23,54 @@ export interface ServerLibraryStatusResponse {
 	enabled: boolean
 }
 
+/** Server-side index scan lifecycle (CONTRACTS.md §10). */
+/** @public */
+export type ServerLibraryScanState = 'scanning' | 'ready' | 'error'
+
+/**
+ * Scan status of the server-side music index. `state`, `current` and `total`
+ * are present when the library is enabled; `error` appears only in the `error`
+ * state and never contains host paths.
+ */
+/** @public */
+export interface ServerLibraryScanStatus extends ServerLibraryStatusResponse {
+	state?: ServerLibraryScanState
+	current?: number
+	total?: number
+	error?: string
+}
+
+/** Content-addressed artwork reference of a catalog track. Bytes are served by `GET artwork/<hash>`. */
+/** @public */
+export interface ServerCatalogArtwork {
+	hash: string
+	mimeType: string
+}
+
+/** One catalog track: file descriptor plus metadata parsed once on the server (CONTRACTS.md §10). */
+/** @public */
+export interface ServerCatalogTrack {
+	descriptor: ServerFileDescriptor
+	/** Stable cross-device identity: `'server:' + sha256(path)`. */
+	uuid: string
+	/** Normalized track metadata matching the browser `ParsedTrackData` shape. */
+	data: ParsedTrackData
+	artwork?: ServerCatalogArtwork
+}
+
+/** Response of `GET /api/server-library/catalog`: the last completed index only. */
+/** @public */
+export interface ServerLibraryCatalogResponse {
+	revision: number
+	tracks: ServerCatalogTrack[]
+}
+
+/** Response of `POST /api/server-library/rescan` (202). */
+/** @public */
+export interface ServerLibraryRescanResponse {
+	state: 'scanning'
+}
+
 /** @public */
 export interface ServerLibraryFilesResponse {
 	files: ServerFileDescriptor[]
@@ -34,6 +83,8 @@ export type ServerLibraryErrorCode =
 	| 'FILE_NOT_FOUND'
 	| 'DIRECTORY_UNAVAILABLE'
 	| 'INTERNAL_ERROR'
+	| 'SCAN_IN_PROGRESS'
+	| 'ARTWORK_NOT_FOUND'
 
 /** @public */
 export interface ServerLibraryErrorResponse {

@@ -1,7 +1,10 @@
 import type { IDBPTransaction } from 'idb'
+import type { UserStateAction } from '#lib/auth/api.ts'
+import { getCurrentUserId } from '#lib/auth/client.ts'
 import { type AppDB, getDatabase } from '#lib/db/database.ts'
 import { type DatabaseChangeDetails, dispatchDatabaseChangedEvent } from '#lib/db/events.ts'
 import { keyRangeOnly } from '#lib/db/key-range.ts'
+import { applyServerActions, buildTrackRemovalActions } from '#lib/user-state/actions.ts'
 import { dbDeleteOrphanedImagesWithTx } from './images.ts'
 import type { Track } from './types.ts'
 
@@ -138,6 +141,16 @@ const dbRemoveUnusedArtistsWithTx = async (
 export const dbRemoveTracks = async (trackIds: readonly number[]): Promise<void> => {
 	if (trackIds.length === 0) {
 		return
+	}
+
+	if (getCurrentUserId() !== null) {
+		// Server-first (§9): synced playlist/favorite/history references of
+		// removed server tracks are cleaned on the server, so the snapshot
+		// never carries dangling entries. On failure nothing is removed.
+		const removalActions = await buildTrackRemovalActions(trackIds)
+		if (removalActions.length > 0) {
+			await applyServerActions(removalActions as [UserStateAction, ...UserStateAction[]])
+		}
 	}
 
 	const db = await getDatabase()

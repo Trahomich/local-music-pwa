@@ -65,7 +65,9 @@ describe('server library middleware', () => {
 		configuredMusicDirectory = musicDirectory
 		nextPaths = []
 
-		const middleware = createServerLibraryMiddleware(() => configuredMusicDirectory)
+		const middleware = createServerLibraryMiddleware(() => configuredMusicDirectory, {
+			dataDir: join(sandboxDirectory, 'data'),
+		})
 		server = createServer((req, res) => {
 			void middleware(req, res, (error) => {
 				if (error) {
@@ -109,7 +111,10 @@ describe('server library middleware', () => {
 		const enabledResponse = await requestApi('/status')
 		expect(enabledResponse.status).toBe(200)
 		expect(enabledResponse.headers.get('cache-control')).toBe('no-store')
-		await expect(enabledResponse.json()).resolves.toEqual({ enabled: true })
+		// CONTRACTS.md §10: an enabled library also reports the index scan state
+		const enabledBody = (await enabledResponse.json()) as Record<string, unknown>
+		expect(enabledBody).toMatchObject({ enabled: true })
+		expect(['scanning', 'ready', 'error']).toContain(enabledBody.state)
 
 		configuredMusicDirectory = undefined
 		const disabledResponse = await requestApi('/status')

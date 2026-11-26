@@ -15,8 +15,17 @@ import {
 	type ServerFileEntity,
 	type Track,
 } from '#lib/library/types.ts'
-import { getAudioMimeType, type ServerFileDescriptor } from '#lib/server-library/api.ts'
-import { fetchServerLibraryFileBlob, fetchServerLibraryFiles } from '#lib/server-library/client.ts'
+import type { ServerFileDescriptor } from '#lib/server-library/api.ts'
+import {
+	fetchServerLibraryArtwork,
+	fetchServerLibraryCatalog,
+	requestServerLibraryRescan,
+	type ServerCatalogTrack,
+	type ServerLibraryCatalogResponse,
+	ServerLibraryRequestError,
+	type ServerLibraryScanStatus,
+	waitForServerLibraryScan,
+} from '#lib/server-library/client.ts'
 import { createImageRecord } from './steps/create-image-record.ts'
 import { dbImportTrack } from './steps/import-track.ts'
 import { parseTrackMetadata } from './steps/parse-track-metadata.ts'
@@ -361,76 +370,148 @@ const toServerFileEntity = (descriptor: ServerFileDescriptor): ServerFileEntity 
 	lastModified: descriptor.lastModified,
 })
 
-const downloadServerFile = async (descriptor: ServerFileDescriptor): Promise<File> => {
-	const blob = await fetchServerLibraryFileBlob(descriptor.path)
+/**
+ * A stored server track is up to date only when the catalog entry describes
+ * the same file contents and carries the same stable uuid. The uuid
+ * comparison also migrates tracks imported by the legacy download-based
+ * scan (random uuids) to their stable server identity in place.
+ */
+const isServerTrackUnchanged = (track: Track, entry: ServerCatalogTrack): boolean =>
+	track.metadataVersion === CURRENT_METADATA_VERSION &&
+	track.uuid === entry.uuid &&
+	isServerFileEntity(track.file) &&
+	track.file.size === entry.descriptor.size &&
+	track.file.lastModified === entry.descriptor.lastModified
 
-	return new File([blob], descriptor.name, {
-		type: getAudioMimeType(descriptor.name) ?? blob.type,
-		lastModified: descriptor.lastModified,
-	})
+const SERVER_ARTWORK_CACHE_LIMIT = 64
+
+/** Server-side scan progress is forwarded to the UI while the worker waits for the index. */
+const postServerScanProgress = (status: ServerLibraryScanStatus): void => {
+	const message: TracksScanMessage = {
+		finished: false,
+		count: {
+			newlyImported: 0,
+			current: status.current ?? 0,
+			total: status.total ?? 0,
+			phase: 'server-scan',
+		},
+	}
+
+	self.postMessage(message)
 }
 
-const isServerTrackUnchanged = (track: Track, descriptor: ServerFileDescriptor): boolean =>
-	track.metadataVersion === CURRENT_METADATA_VERSION &&
-	isServerFileEntity(track.file) &&
-	track.file.size === descriptor.size &&
-	track.file.lastModified === descriptor.lastModified
+/**
+ * Resolves artwork by content hash without downloading it twice: an in-run
+ * cache covers repeats within one import, IndexedDB covers rescans.
+ * `dbImportTrack` keeps the content-addressed put-if-absent semantics.
+ */
+const resolveCatalogArtwork = async (
+	cache: Map<string, ImageRecord>,
+	hash: string,
+): Promise<ImageRecord> => {
+	const cached = cache.get(hash)
+	if (cached) {
+		return cached
+	}
+
+	const db = await getDatabase()
+	const existing = await db.get('images', hash)
+	const record =
+		existing ?? (await createImageRecord(await fetchServerLibraryArtwork(hash), hash))
+
+	cache.set(hash, record)
+	if (cache.size > SERVER_ARTWORK_CACHE_LIMIT) {
+		const oldest = cache.keys().next().value
+		if (oldest !== undefined) {
+			cache.delete(oldest)
+		}
+	}
+
+	return record
+}
+
+/** Retries the catalog once the server scan that produced the first 409 has finished. */
+const MAX_CATALOG_ATTEMPTS = 3
+
+const fetchCatalogAfterScan = async (): Promise<ServerLibraryCatalogResponse> => {
+	for (let attempt = 1; ; attempt += 1) {
+		try {
+			return await fetchServerLibraryCatalog()
+		} catch (err) {
+			const scanInProgress =
+				err instanceof ServerLibraryRequestError && err.code === 'SCAN_IN_PROGRESS'
+			if (!scanInProgress || attempt >= MAX_CATALOG_ATTEMPTS) {
+				throw err
+			}
+
+			await waitForServerLibraryScan({ onProgress: postServerScanProgress })
+		}
+	}
+}
 
 /**
- * Scans the server library. The initial add and rescans share one path:
- * existing tracks are matched by their full relative path, unchanged files
- * skip re-parsing, and tracks whose path disappeared from the listing are
- * removed only after the listing was fully processed.
+ * Imports a completed server catalog (CONTRACTS.md §10). No audio is
+ * downloaded and no browser metadata parsing happens on this path: the
+ * server-provided `data` goes straight into the existing import pipeline,
+ * artwork is fetched by hash only when absent from IndexedDB.
  */
-const scanServerDirectory = async (descriptors: ServerFileDescriptor[], directoryId: number) => {
+const scanServerCatalog = async (catalog: ServerLibraryCatalogResponse, directoryId: number) => {
 	const db = await getDatabase()
 	const existingTracks = await db.getAllFromIndex('tracks', 'directory', directoryId)
 	const existingTracksByPath = new Map(existingTracks.map((track) => [track.fileName, track]))
 
-	const tracker = new StatusTracker(descriptors.length, 'SCAN_SERVER_DIR')
+	const tracker = new StatusTracker(catalog.tracks.length, 'SCAN_SERVER_CATALOG')
 	const scannedTracksIds = new Set<number>()
-	const processor = new TrackProcessor(tracker, (trackId) => {
-		scannedTracksIds.add(trackId)
-	})
+	const artworkCache = new Map<string, ImageRecord>()
 
 	const scannedAt = Date.now()
 
-	for (const descriptor of descriptors) {
+	for (const entry of catalog.tracks) {
 		tracker.current += 1
 
 		try {
-			const existingTrack = existingTracksByPath.get(descriptor.path)
-			// The path is confirmed by the successful listing, so the previous
+			const existingTrack = existingTracksByPath.get(entry.descriptor.path)
+			// The path is confirmed by the successful catalog, so the previous
 			// record must survive a failed re-import; only paths missing from
-			// the listing are removed after the scan.
+			// the catalog are removed after the scan.
 			if (existingTrack) {
 				scannedTracksIds.add(existingTrack.id)
 			}
 
-			if (existingTrack && isServerTrackUnchanged(existingTrack, descriptor)) {
-				scannedTracksIds.add(existingTrack.id)
+			if (existingTrack && isServerTrackUnchanged(existingTrack, entry)) {
 				tracker.sendMsg(false)
 
 				continue
 			}
 
-			const unwrappedFile = await downloadServerFile(descriptor)
+			const imageRecord = entry.artwork
+				? await resolveCatalogArtwork(artworkCache, entry.artwork.hash)
+				: undefined
 
-			await processor.parseAndEnqueue({
-				unwrappedFile,
-				file: toServerFileEntity(descriptor),
-				fileName: descriptor.path,
-				directoryId,
-				trackId: existingTrack?.id,
-				uuid: existingTrack?.uuid,
-				scannedAt,
-			})
-		} catch {
-			// we ignore errors and just move on to the next track.
+			const trackId = await dbImportTrack(
+				{
+					...entry.data,
+					imageHash: entry.artwork?.hash,
+					primaryColor: imageRecord?.primaryColor,
+					metadataVersion: CURRENT_METADATA_VERSION,
+					file: toServerFileEntity(entry.descriptor),
+					directory: directoryId,
+					fileName: entry.descriptor.path,
+					scannedAt,
+					uuid: entry.uuid,
+				},
+				existingTrack?.id,
+				imageRecord,
+			)
+
+			scannedTracksIds.add(trackId)
+			tracker.newlyImported += 1
+			tracker.sendMsg(false)
+		} catch (err) {
+			// A single broken entry must not abort the scan; its previous record survives.
+			console.error(err)
 		}
 	}
-
-	await processor.drain()
 
 	// After importing is done, we remove tracks that were not scanned
 	// meaning their files no longer exist on the server
@@ -462,10 +543,17 @@ export const workerAction = async (options: TracksScanOptions) => {
 	}
 
 	if (options.action === 'server-directory-add' || options.action === 'server-directory-rescan') {
-		// The listing is fetched before any database write: on failure existing
+		// The catalog is fetched before any database write: on failure existing
 		// records stay untouched and the worker reports the error to the UI.
-		const descriptors = await fetchServerLibraryFiles()
-		await scanServerDirectory(descriptors, options.dirId)
+		// A rescan first asks the server to refresh its index (idempotent 202)
+		// and polls the scan status so the UI shows real server progress.
+		if (options.action === 'server-directory-rescan') {
+			await requestServerLibraryRescan()
+			await waitForServerLibraryScan({ onProgress: postServerScanProgress })
+		}
+
+		const catalog = await fetchCatalogAfterScan()
+		await scanServerCatalog(catalog, options.dirId)
 
 		return
 	}

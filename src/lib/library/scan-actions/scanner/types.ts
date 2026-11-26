@@ -8,8 +8,12 @@ export interface TracksScanResult {
 	current: number
 	/** Total count of tracks */
 	total: number
-	/** The scan aborted before completion, e.g. the server listing could not be fetched */
+	/** The scan aborted before completion, e.g. the server catalog could not be fetched */
 	error?: boolean
+	/** The server library API rejected the request because the session is missing or expired (401). */
+	authRequired?: boolean
+	/** `server-scan` while the worker waits for the server-side index; count then reflects server progress. */
+	phase?: 'server-scan'
 }
 
 export interface TracksScanMessage {

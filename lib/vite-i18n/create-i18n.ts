@@ -15,6 +15,7 @@ export interface CreateI18nOptions {
 	inputDir: string
 	outputDir: string
 	baseLocale: string
+	defaultLocale: string
 	locales: string[]
 	localStorageKey: string
 	/** Dev server uses virtual locale module ids; builds reference hashed chunk paths. */
@@ -33,10 +34,14 @@ export interface I18nInstance {
  * @public
  */
 export const createI18n = async (options: CreateI18nOptions): Promise<I18nInstance> => {
-	const { inputDir, outputDir, baseLocale, locales, localStorageKey, isDev } = options
+	const { inputDir, outputDir, baseLocale, defaultLocale, locales, localStorageKey, isDev } =
+		options
 
 	if (!locales.includes(baseLocale)) {
 		throw new Error(`Base locale "${baseLocale}" must be included in locales.`)
+	}
+	if (!locales.includes(defaultLocale)) {
+		throw new Error(`Default locale "${defaultLocale}" must be included in locales.`)
 	}
 
 	await fs.mkdir(outputDir, { recursive: true })
@@ -52,7 +57,7 @@ export const createI18n = async (options: CreateI18nOptions): Promise<I18nInstan
 	)
 
 	const importMapLoader = await generateImportMapLoaderScript({
-		baseLocale,
+		defaultLocale,
 		locales,
 		localesMap,
 		localStorageKey,
@@ -64,6 +69,7 @@ export const createI18n = async (options: CreateI18nOptions): Promise<I18nInstan
 			outputDir,
 			localStorageKey,
 			baseLocale,
+			defaultLocale,
 			locales,
 			compiler,
 		}),

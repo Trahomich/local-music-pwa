@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { afterNavigate } from '$app/navigation'
 	import { page } from '$app/state'
+	import AuthScreen from '#lib/auth/AuthScreen.svelte'
 	import { trackPageView } from '#lib/helpers/analytics.ts'
 	import { MainStore } from '#lib/stores/main/store.svelte.ts'
 	import { setMainStoreContext } from '#lib/stores/main/use-store.ts'
 	import { setupAppViewTransitions } from '#lib/view-transitions.svelte.ts'
 
-	const { children } = $props()
+	const { children, data } = $props()
 
 	const mainStore = setMainStoreContext(new MainStore())
 	setupAppViewTransitions(() => mainStore.isReducedMotion)
@@ -25,4 +26,9 @@
 	})
 </script>
 
-{@render children()}
+{#if data.authState.status === 'unauthenticated'}
+	<!-- Self-hosted auth gate (§9): the static shell loads, but the app stays hidden until sign-in. -->
+	<AuthScreen />
+{:else}
+	{@render children()}
+{/if}

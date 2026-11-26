@@ -1,4 +1,4 @@
-declare const BASE_LOCALE: string
+declare const DEFAULT_LOCALE: string
 declare const LOCALES: string[]
 declare const LOCALES_MAP: Record<string, string>
 declare const LOCAL_STORAGE_KEY: string
@@ -6,7 +6,7 @@ declare const MESSAGES_MODULE_ID: string
 
 {
 	const saved = localStorage.getItem(LOCAL_STORAGE_KEY)
-	const locale = saved && LOCALES.includes(saved) ? saved : BASE_LOCALE
+	const locale = saved && LOCALES.includes(saved) ? saved : DEFAULT_LOCALE
 
 	document.documentElement.lang = locale
 

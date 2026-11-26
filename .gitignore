@@ -11,3 +11,9 @@ coverage
 .pnpm-store
 .scratch/
 yggdrasil
+.data/
+
+# Локальные постоянные данные (CONTRACTS.md §9): auth.sqlite/library.sqlite
+# и прочие БД/секреты никогда не коммитим
+.data/
+*.sqlite*

@@ -1,22 +1,27 @@
-import { createReadStream, type Stats } from 'node:fs'
-import { lstat, readdir, realpath, stat } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import { lstat, realpath } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { resolve, sep } from 'node:path'
 import {
 	getAudioMimeType,
 	SERVER_LIBRARY_BASE_PATH,
-	type ServerFileDescriptor,
 	type ServerLibraryErrorCode,
+	type ServerLibraryRescanResponse,
 } from '../../src/lib/server-library/api.ts'
+import { createLibraryIndexStore, type LibraryIndexStore } from './index-store.ts'
+import { createLibraryScanner, type LibraryScanner } from './scanner.ts'
+import { collectAudioFiles, isErrorCode, resolveMusicDir } from './walk.ts'
 
 type NextFunction = (error?: unknown) => void
 
 const STATUS_ROUTE = `${SERVER_LIBRARY_BASE_PATH}/status`
 const FILES_ROUTE = `${SERVER_LIBRARY_BASE_PATH}/files`
 const FILE_ROUTE = `${SERVER_LIBRARY_BASE_PATH}/file`
+const CATALOG_ROUTE = `${SERVER_LIBRARY_BASE_PATH}/catalog`
+const RESCAN_ROUTE = `${SERVER_LIBRARY_BASE_PATH}/rescan`
+const ARTWORK_ROUTE_PREFIX = `${SERVER_LIBRARY_BASE_PATH}/artwork/`
 
-const isErrorCode = (error: unknown, code: string): boolean =>
-	typeof error === 'object' && error !== null && 'code' in error && error.code === code
+const ARTWORK_HASH_RE = /^[0-9a-f]{64}$/
 
 const sendJson = (
 	res: ServerResponse,
@@ -41,62 +46,6 @@ const sendError = (
 	headOnly: boolean,
 ): void => {
 	sendJson(res, statusCode, { error: { code, message } }, headOnly)
-}
-
-/** Resolves `MUSIC_DIR` to its real path, or `undefined` when it is not a readable directory. */
-const resolveMusicDir = async (musicDir: string): Promise<string | undefined> => {
-	try {
-		const [realDir, dirStat] = await Promise.all([realpath(musicDir), stat(musicDir)])
-		return dirStat.isDirectory() ? realDir : undefined
-	} catch {
-		return undefined
-	}
-}
-
-const collectAudioFiles = async (rootDir: string): Promise<ServerFileDescriptor[]> => {
-	const files: ServerFileDescriptor[] = []
-
-	const walk = async (directory: string, segments: string[]): Promise<void> => {
-		const entries = await readdir(directory, { withFileTypes: true })
-
-		for (const entry of entries) {
-			// Never follow symbolic links, neither to files nor to directories
-			if (entry.isSymbolicLink()) {
-				continue
-			}
-
-			if (entry.isDirectory()) {
-				await walk(resolve(directory, entry.name), [...segments, entry.name])
-				continue
-			}
-
-			if (!entry.isFile() || getAudioMimeType(entry.name) === undefined) {
-				continue
-			}
-
-			let fileStat: Stats
-			try {
-				fileStat = await stat(resolve(directory, entry.name))
-			} catch (error) {
-				// The file may disappear between readdir and stat; skip it instead of failing the whole index
-				if (isErrorCode(error, 'ENOENT') || isErrorCode(error, 'ENOTDIR')) {
-					continue
-				}
-				throw error
-			}
-
-			files.push({
-				path: [...segments, entry.name].join('/'),
-				name: entry.name,
-				size: fileStat.size,
-				lastModified: Math.round(fileStat.mtimeMs),
-			})
-		}
-	}
-
-	await walk(rootDir, [])
-	files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
-	return files
 }
 
 /**
@@ -185,6 +134,7 @@ const handleStatus = async (
 	res: ServerResponse,
 	headOnly: boolean,
 	musicDir: string | undefined,
+	scanner: LibraryScanner,
 ): Promise<void> => {
 	if (musicDir === undefined) {
 		sendJson(res, 200, { enabled: false }, headOnly)
@@ -197,7 +147,20 @@ const handleStatus = async (
 		return
 	}
 
-	sendJson(res, 200, { enabled: true }, headOnly)
+	scanner.ensureStarted()
+	const status = scanner.getStatus()
+	sendJson(
+		res,
+		200,
+		{
+			enabled: true,
+			state: status.state,
+			current: status.current,
+			total: status.total,
+			...(status.error === undefined ? {} : { error: status.error }),
+		},
+		headOnly,
+	)
 }
 
 const handleFiles = async (
@@ -333,17 +296,154 @@ const handleFile = async (
 	}
 }
 
+/** Serves the catalog of the last completed index only (CONTRACTS.md §10). */
+const handleCatalog = (
+	res: ServerResponse,
+	headOnly: boolean,
+	musicDir: string | undefined,
+	scanner: LibraryScanner,
+	getStore: () => LibraryIndexStore,
+): void => {
+	if (musicDir === undefined) {
+		sendError(res, 404, 'SERVER_LIBRARY_DISABLED', 'Server library is disabled', headOnly)
+		return
+	}
+
+	scanner.ensureStarted()
+	const store = getStore()
+	if (!store.hasCompleteIndex()) {
+		sendError(res, 409, 'SCAN_IN_PROGRESS', 'Catalog is not ready yet', headOnly)
+		return
+	}
+
+	sendJson(res, 200, { revision: store.getRevision(), tracks: store.getCatalog() }, headOnly)
+}
+
+/** Idempotently starts a background rescan; a scan already in flight is left alone. */
+const handleRescan = async (
+	res: ServerResponse,
+	musicDir: string | undefined,
+	scanner: LibraryScanner,
+): Promise<void> => {
+	if (musicDir === undefined) {
+		sendError(res, 404, 'SERVER_LIBRARY_DISABLED', 'Server library is disabled', false)
+		return
+	}
+
+	const realDir = await resolveMusicDir(musicDir)
+	if (realDir === undefined) {
+		sendError(res, 503, 'DIRECTORY_UNAVAILABLE', 'Music directory is unavailable', false)
+		return
+	}
+
+	scanner.startScan()
+	const body: ServerLibraryRescanResponse = { state: 'scanning' }
+	sendJson(res, 202, body, false)
+}
+
+const handleArtwork = (
+	res: ServerResponse,
+	headOnly: boolean,
+	musicDir: string | undefined,
+	hash: string,
+	getStore: () => LibraryIndexStore,
+): void => {
+	if (musicDir === undefined) {
+		sendError(res, 404, 'SERVER_LIBRARY_DISABLED', 'Server library is disabled', headOnly)
+		return
+	}
+
+	if (!ARTWORK_HASH_RE.test(hash)) {
+		sendError(res, 404, 'ARTWORK_NOT_FOUND', 'Artwork not found', headOnly)
+		return
+	}
+
+	const artwork = getStore().getArtwork(hash)
+	if (artwork === undefined) {
+		sendError(res, 404, 'ARTWORK_NOT_FOUND', 'Artwork not found', headOnly)
+		return
+	}
+
+	res.writeHead(200, {
+		'Content-Type': artwork.mimeType,
+		'Content-Length': artwork.bytes.byteLength,
+		// Content-addressed bytes are immutable by construction
+		'Cache-Control': 'public, max-age=31536000, immutable',
+	})
+	res.end(headOnly ? undefined : Buffer.from(artwork.bytes))
+}
+
+const DEFAULT_SCAN_CONCURRENCY = 4
+const MIN_SCAN_CONCURRENCY = 1
+const MAX_SCAN_CONCURRENCY = 16
+
+const normalizeScanConcurrency = (value: number | string | undefined): number => {
+	const parsed = typeof value === 'string' ? Number(value) : value
+	if (parsed === undefined || !Number.isInteger(parsed)) {
+		return DEFAULT_SCAN_CONCURRENCY
+	}
+	return Math.min(MAX_SCAN_CONCURRENCY, Math.max(MIN_SCAN_CONCURRENCY, parsed))
+}
+
+/** @public */
+export interface ServerLibraryMiddlewareOptions {
+	/**
+	 * Directory holding `library.sqlite`. Defaults to `DATA_DIR` env or `./.data`,
+	 * resolved once when the middleware is created.
+	 */
+	dataDir?: string
+	/** Max concurrent metadata parses. Defaults to `SNAE_SCAN_CONCURRENCY` env or 4, clamped to 1–16. */
+	scanConcurrency?: number
+}
+
+/** Connect-style middleware with a test seam to await background scans. */
+/** @public */
+export interface ServerLibraryMiddleware {
+	(req: IncomingMessage, res: ServerResponse, next: NextFunction): Promise<void>
+	/** Resolves once no index scan is running. */
+	waitForScanIdle: () => Promise<void>
+}
+
 /**
- * Connect-style middleware serving the read-only server music library API.
+ * Connect-style middleware serving the read-only server music library API and the
+ * persistent server-side music index (CONTRACTS.md §4, §10).
  * Handles only URLs under `/api/server-library`; everything else is passed to `next()`.
  *
  * By default `getMusicDir` reads `process.env.MUSIC_DIR` on every request, so an empty
  * or missing value disables the library (but not the player) without a restart.
+ * When the library is enabled, a background index scan starts on creation (and lazily
+ * on the first request if `MUSIC_DIR` appears later); authentication is a separate
+ * middleware concern and is not checked here.
  * @public
  */
-export const createServerLibraryMiddleware =
-	(getMusicDir: () => string | undefined = () => process.env.MUSIC_DIR || undefined) =>
-	async (req: IncomingMessage, res: ServerResponse, next: NextFunction): Promise<void> => {
+export const createServerLibraryMiddleware = (
+	getMusicDir: () => string | undefined = () => process.env.MUSIC_DIR || undefined,
+	options?: ServerLibraryMiddlewareOptions,
+): ServerLibraryMiddleware => {
+	const dataDir = options?.dataDir ?? (process.env.DATA_DIR || './.data')
+	const concurrency = normalizeScanConcurrency(
+		options?.scanConcurrency ?? process.env.SNAE_SCAN_CONCURRENCY,
+	)
+
+	let store: LibraryIndexStore | undefined
+	const getStore = (): LibraryIndexStore => {
+		store ??= createLibraryIndexStore(dataDir)
+		return store
+	}
+
+	const scanner = createLibraryScanner({ getMusicDir, getStore, concurrency })
+
+	// Startup background scan (CONTRACTS.md §10). Failures move the scanner to the
+	// error state and are retried through POST /rescan, never in a request loop.
+	if (getMusicDir() !== undefined) {
+		scanner.startScan()
+	}
+
+	const middleware = async (
+		req: IncomingMessage,
+		res: ServerResponse,
+		next: NextFunction,
+	): Promise<void> => {
 		const requestUrl = new URL(req.url ?? '/', 'http://localhost')
 		const pathname = requestUrl.pathname
 
@@ -357,6 +457,16 @@ export const createServerLibraryMiddleware =
 
 		const headOnly = req.method === 'HEAD'
 		try {
+			if (pathname === RESCAN_ROUTE) {
+				if (req.method !== 'POST') {
+					res.writeHead(405, { Allow: 'POST', 'Cache-Control': 'no-store' })
+					res.end()
+					return
+				}
+				await handleRescan(res, getMusicDir(), scanner)
+				return
+			}
+
 			if (req.method !== 'GET' && !headOnly) {
 				res.writeHead(405, { Allow: 'GET, HEAD', 'Cache-Control': 'no-store' })
 				res.end()
@@ -364,15 +474,29 @@ export const createServerLibraryMiddleware =
 			}
 
 			const musicDir = getMusicDir()
+			if (pathname.startsWith(ARTWORK_ROUTE_PREFIX)) {
+				handleArtwork(
+					res,
+					headOnly,
+					musicDir,
+					pathname.slice(ARTWORK_ROUTE_PREFIX.length),
+					getStore,
+				)
+				return
+			}
+
 			switch (pathname) {
 				case STATUS_ROUTE:
-					await handleStatus(res, headOnly, musicDir)
+					await handleStatus(res, headOnly, musicDir, scanner)
 					break
 				case FILES_ROUTE:
 					await handleFiles(res, headOnly, musicDir)
 					break
 				case FILE_ROUTE:
 					await handleFile(req, res, headOnly, musicDir, requestUrl)
+					break
+				case CATALOG_ROUTE:
+					handleCatalog(res, headOnly, musicDir, scanner, getStore)
 					break
 				default:
 					sendError(res, 404, 'FILE_NOT_FOUND', 'Not found', headOnly)
@@ -386,3 +510,6 @@ export const createServerLibraryMiddleware =
 			sendError(res, 500, 'INTERNAL_ERROR', 'Internal server error', headOnly)
 		}
 	}
+
+	return Object.assign(middleware, { waitForScanIdle: () => scanner.waitForIdle() })
+}

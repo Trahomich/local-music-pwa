@@ -13,6 +13,7 @@ export interface I18nCompilerContext {
 	outputDir: string
 	localStorageKey: string
 	baseLocale: string
+	defaultLocale: string
 	locales: string[]
 	compiler: MessageCompiler
 }
@@ -34,6 +35,7 @@ export const i18nCompilerPlugin = (ctx: I18nCompilerContext): Plugin => {
 
 			await emitRuntimeModule({
 				baseLocale,
+				defaultLocale: ctx.defaultLocale,
 				locales,
 				localStorageKey: ctx.localStorageKey,
 				outputDir: ctx.outputDir,

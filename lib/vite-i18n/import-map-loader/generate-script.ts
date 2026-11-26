@@ -6,7 +6,7 @@ import { minifySync, transformWithOxc } from 'vite'
 import { MESSAGES_MODULE_ID } from '../constants.ts'
 
 interface GenerateImportMapLoaderScriptOptions {
-	baseLocale: string
+	defaultLocale: string
 	locales: string[]
 	localesMap: Record<string, string>
 	localStorageKey: string
@@ -34,7 +34,7 @@ export const generateImportMapLoaderScript = async (
 	const transpiled = await transformWithOxc(source, 'script.ts', {
 		lang: 'ts',
 		define: {
-			BASE_LOCALE: JSON.stringify(options.baseLocale),
+			DEFAULT_LOCALE: JSON.stringify(options.defaultLocale),
 			LOCALES: JSON.stringify(options.locales),
 			LOCALES_MAP: JSON.stringify(options.localesMap),
 			LOCAL_STORAGE_KEY: JSON.stringify(options.localStorageKey),

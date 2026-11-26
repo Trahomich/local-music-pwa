@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { browser } from '$app/env'
+	import { getAuthState } from '#lib/auth/client.ts'
 	import Button from '#lib/components/Button.svelte'
 	import IconButton from '#lib/components/IconButton.svelte'
 	import Icon from '#lib/components/icon/Icon.svelte'
@@ -17,6 +18,7 @@
 		PLAYER_PLAYBACK_RATE_MIN,
 	} from '#lib/stores/player/player.svelte.ts'
 	import { getLocale, type Locale, setLocale } from '#i18n/runtime'
+	import AccountSection from './components/AccountSection.svelte'
 	import DirectoriesList from './components/DirectoriesList.svelte'
 	import InstallAppBanner from './components/InstallAppBanner.svelte'
 	import MissingFsApiBanner from './components/MissingFsApiBanner.svelte'
@@ -87,6 +89,9 @@
 	const isDatabasePending = $derived(isDatabasePendingGetter.current)
 
 	const isGaplessPlaybackSupported = browser && 'AudioDecoder' in globalThis
+
+	// Reload happens on every profile switch, so a static snapshot is enough here.
+	const authState = getAuthState()
 </script>
 
 {#snippet heading(text: string)}
@@ -100,7 +105,7 @@
 				{m.settingsDirectories()}
 			</div>
 			<div class="mt-1 mb-4 text-body-sm text-onSurfaceVariant">
-				{m.settingsAllDataLocal()}
+				{authState.status === 'authenticated' ? m.settingsDataInAccount() : m.settingsAllDataLocal()}
 			</div>
 
 			{#if !isFileSystemAccessSupported}
@@ -273,6 +278,8 @@
 			items={languageOptions}
 		/>
 	</section>
+
+	<AccountSection />
 
 	<section class="card settings-max-width mx-auto mt-6 w-full text-body-lg">
 		<SettingsListItem title={m.settingsAbout()}>

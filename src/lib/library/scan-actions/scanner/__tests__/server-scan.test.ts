@@ -1,7 +1,9 @@
-// Контракт: CONTRACTS.md §5 — сканирование server source: identity [SERVER_DIRECTORY_ID, path],
-// пропуск неизменённых, сохранение id/uuid при обновлении, удаление исчезнувших только после
-// успешного полного списка, ошибки list/частичный сбой не удаляют прежние записи,
-// локальные/legacy треки не затрагиваются, удаление источника — только IndexedDB.
+// Контракт: CONTRACTS.md §10 — каталожное сканирование server source: identity
+// [SERVER_DIRECTORY_ID, path], stable server uuid, пропуск неизменённых, сохранение
+// numeric id при обновлении и миграции uuid, удаление исчезнувших только после
+// успешного полного catalog, ошибка catalog/частичный сбой не удаляют прежние записи,
+// аудио не скачивается и browser tag parser не вызывается, artwork качается по hash
+// один раз, local/legacy треки не затрагиваются, 401 — auth-ошибка без очистки библиотеки.
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDatabase } from '#lib/db/database.ts'
@@ -20,7 +22,6 @@ import {
 	CURRENT_METADATA_VERSION,
 	type Directory,
 	LEGACY_NO_NATIVE_DIRECTORY,
-	type ParsedTrackData,
 	type PlaylistEntry,
 	SERVER_DIRECTORY_ID,
 	type Track,
@@ -28,9 +29,12 @@ import {
 } from '#lib/library/types.ts'
 import {
 	installServerLibraryMock,
+	SERVER_ARTWORK_HASH,
+	serverCatalogArtwork,
+	serverCatalogTrack,
 	serverFileDescriptor,
-	serverFileMime,
 } from '#lib/server-library/__tests__/server-library-mock.ts'
+import { ServerLibraryRequestError } from '#lib/server-library/client.ts'
 
 vi.mock('#lib/library/scan-actions/scanner/steps/parse-track-metadata.ts', () => ({
 	parseTrackMetadata: vi.fn(),
@@ -50,22 +54,9 @@ vi.mock('#lib/db/lock-database.ts', () => ({
 
 const mockedParseTrackMetadata = vi.mocked(parseTrackMetadata)
 
-const FILE_EXTENSION_RE = /\.[^.]+$/
+const stableUuid = (path: string): string => `server:mock:${path}`
 
-const parsedDataFor = (file: File): ParsedTrackData => ({
-	name: file.name.replace(FILE_EXTENSION_RE, ''),
-	album: 'Server Album',
-	artists: ['Server Artist'],
-	year: '2024',
-	duration: 180,
-	genre: [],
-	trackNo: 1,
-	trackOf: 1,
-	discNo: 1,
-	discOf: 1,
-	metadataVersion: CURRENT_METADATA_VERSION,
-	format: { codec: 'mp3' },
-})
+const FILE_EXTENSION_RE = /\.[^.]+$/
 
 const dbImportTestTrack = (overrides: Partial<UnknownTrack> = {}): Promise<number> =>
 	dbImportTrack(
@@ -104,40 +95,50 @@ const getServerTrackByPath = async (path: string): Promise<Track> => {
 const scanServer = (action: 'server-directory-add' | 'server-directory-rescan'): Promise<void> =>
 	workerAction({ action, dirId: SERVER_DIRECTORY_ID })
 
-describe('server library scanning', () => {
+const artworkRequests = (
+	requests: ReadonlyArray<{ pathname: string }>,
+): Array<{ pathname: string }> =>
+	requests.filter((request) => request.pathname.startsWith('/api/server-library/artwork/'))
+
+describe('server library catalog scanning', () => {
 	let mock: ReturnType<typeof installServerLibraryMock>
 
 	beforeEach(async () => {
 		await clearDatabaseStores()
 		mock = installServerLibraryMock()
 		mockedParseTrackMetadata.mockReset()
-		mockedParseTrackMetadata.mockImplementation(async (file) => ({
-			data: parsedDataFor(file),
-		}))
+		// CONTRACTS.md §10: browser tag parsing is forbidden on the server path —
+		// any accidental call must fail the test loudly.
+		mockedParseTrackMetadata.mockImplementation(() => {
+			throw new Error('parseTrackMetadata must not run for server scans')
+		})
 	})
 
 	afterEach(() => {
 		vi.unstubAllGlobals()
 	})
 
-	it('imports every listed file under its full relative path', async () => {
-		const files = [
+	it('imports every catalog track under its full relative path without downloading audio or parsing tags', async () => {
+		const descriptors = [
 			serverFileDescriptor('Artist/Album/01 Song.mp3'),
 			serverFileDescriptor('Artist/Album/02 Song.flac'),
 			serverFileDescriptor('Other/01 Song.mp3'),
 		]
-		mock.state.files = files
+		mock.state.catalogTracks = descriptors.map((descriptor) => serverCatalogTrack(descriptor))
 
 		await scanServer('server-directory-add')
 
 		const tracks = await getServerTracks()
 		expect(tracks).toHaveLength(3)
 
-		for (const file of files) {
-			const track = tracks.find((candidate) => candidate.fileName === file.path)
+		for (const descriptor of descriptors) {
+			const track = tracks.find((candidate) => candidate.fileName === descriptor.path)
 			expectToBeDefined(track)
 			expect(track.directory).toBe(SERVER_DIRECTORY_ID)
-			expect(track.file).toEqual({ ...file, kind: 'server' })
+			expect(track.file).toEqual({ ...descriptor, kind: 'server' })
+			expect(track.uuid).toBe(stableUuid(descriptor.path))
+			expect(track.metadataVersion).toBe(CURRENT_METADATA_VERSION)
+			expect(track.name).toBe(descriptor.name.replace(FILE_EXTENSION_RE, ''))
 		}
 
 		// Same basename in different folders stays a separate track.
@@ -147,59 +148,44 @@ describe('server library scanning', () => {
 				track.fileName === 'Other/01 Song.mp3',
 		)
 		expect(duplicateNameTracks).toHaveLength(2)
-		expect(new Set(duplicateNameTracks.map((track) => track.id)).size).toBe(2)
+		expect(new Set(tracks.map((track) => track.id)).size).toBe(3)
 
-		// Each downloaded file reaches the existing import pipeline as a File with
-		// basename, contract MIME type and mtime from the server descriptor.
-		const parsedFiles = mockedParseTrackMetadata.mock.calls.map((call) => call[0])
-		expect(parsedFiles).toHaveLength(3)
-		for (const parsedFile of parsedFiles) {
-			const text = await parsedFile.text()
-			const path = text.slice('server-bytes:'.length)
-			const descriptor = files.find((file) => file.path === path)
-			expectToBeDefined(descriptor)
-			expect(parsedFile.name).toBe(descriptor.name)
-			expect(parsedFile.type).toBe(serverFileMime(path))
-			expect(parsedFile.lastModified).toBe(descriptor.lastModified)
-		}
+		expect(mockedParseTrackMetadata).not.toHaveBeenCalled()
+		expect(mock.requests).toEqual([
+			expect.objectContaining({ method: 'GET', pathname: '/api/server-library/catalog' }),
+		])
 	})
 
-	it('uses only read-only GET requests against the documented endpoints', async () => {
-		mock.state.files = [serverFileDescriptor('Artist/a.mp3')]
-
-		await scanServer('server-directory-add')
-
-		expect(mock.requests.length).toBeGreaterThan(0)
-		for (const request of mock.requests) {
-			expect(request.method).toBe('GET')
-			expect(['/api/server-library/files', '/api/server-library/file']).toContain(
-				request.pathname,
-			)
-		}
-	})
-
-	it('does not re-parse files whose size and mtime are unchanged', async () => {
-		mock.state.files = [
+	it('rescan polls the server scan and keeps unchanged tracks without artwork or audio downloads', async () => {
+		const descriptors = [
 			serverFileDescriptor('Artist/a.mp3'),
 			serverFileDescriptor('Artist/b.mp3'),
 		]
+		mock.state.catalogTracks = descriptors.map((descriptor) => serverCatalogTrack(descriptor))
 		await scanServer('server-directory-add')
 		const idsBefore = (await getServerTracks()).map((track) => track.id).sort()
 
-		mockedParseTrackMetadata.mockClear()
+		mock.requests.length = 0
 		await scanServer('server-directory-rescan')
 
+		expect(mock.requests.map((request) => `${request.method} ${request.pathname}`)).toEqual([
+			'POST /api/server-library/rescan',
+			'GET /api/server-library/status',
+			'GET /api/server-library/catalog',
+		])
 		expect(mockedParseTrackMetadata).not.toHaveBeenCalled()
+		expect(artworkRequests(mock.requests)).toHaveLength(0)
+
 		const idsAfter = (await getServerTracks()).map((track) => track.id).sort()
 		expect(idsAfter).toEqual(idsBefore)
 	})
 
-	it('re-parses changed files in place, keeping track id, uuid and references', async () => {
-		const changedPath = 'Artist/a.mp3'
-		mock.state.files = [serverFileDescriptor(changedPath), serverFileDescriptor('b.mp3')]
+	it('re-imports changed catalog entries in place, keeping numeric id, stable uuid and references', async () => {
+		const pathA = 'Artist/a.mp3'
+		const v1 = [serverFileDescriptor(pathA), serverFileDescriptor('Artist/b.mp3')]
+		mock.state.catalogTracks = v1.map((descriptor) => serverCatalogTrack(descriptor))
 		await scanServer('server-directory-add')
-
-		const trackBefore = await getServerTrackByPath(changedPath)
+		const trackBefore = await getServerTrackByPath(pathA)
 
 		const playlistId = await dbCreatePlaylist('Mix', '')
 		const playlistEntry: Omit<PlaylistEntry, 'id'> = {
@@ -211,20 +197,18 @@ describe('server library scanning', () => {
 		await db.add('playlistEntries', playlistEntry as PlaylistEntry)
 		await dbAddToPlayHistory(trackBefore.id)
 
-		const updatedDescriptor = serverFileDescriptor(changedPath, {
-			size: 424_242,
-			lastModified: 1_800_000_000_000,
-		})
-		mock.state.files = [updatedDescriptor, serverFileDescriptor('b.mp3')]
-		mockedParseTrackMetadata.mockClear()
+		const v2 = [
+			serverFileDescriptor(pathA, { size: 424_242, lastModified: 1_800_000_000_000 }),
+			serverFileDescriptor('Artist/b.mp3'),
+		]
+		mock.state.catalogTracks = v2.map((descriptor) => serverCatalogTrack(descriptor))
 
 		await scanServer('server-directory-rescan')
 
-		expect(mockedParseTrackMetadata).toHaveBeenCalledTimes(1)
-		const trackAfter = await getServerTrackByPath(changedPath)
+		const trackAfter = await getServerTrackByPath(pathA)
 		expect(trackAfter.id).toBe(trackBefore.id)
-		expect(trackAfter.uuid).toBe(trackBefore.uuid)
-		expect(trackAfter.file).toEqual({ ...updatedDescriptor, kind: 'server' })
+		expect(trackAfter.uuid).toBe(stableUuid(pathA))
+		expect(trackAfter.file).toEqual({ ...v2[0], kind: 'server' })
 
 		const entries = await db.getAll('playlistEntries')
 		expect(entries).toHaveLength(1)
@@ -234,10 +218,77 @@ describe('server library scanning', () => {
 		expect(history[0]?.trackId).toBe(trackBefore.id)
 	})
 
-	it('removes server tracks that vanished from a successful full listing', async () => {
-		mock.state.files = [
-			serverFileDescriptor('Artist/a.mp3'),
-			serverFileDescriptor('Artist/b.mp3'),
+	it('migrates download-era tracks with random uuids to the stable server uuid in place', async () => {
+		const descriptor = serverFileDescriptor('Artist/legacy.mp3')
+		const legacyUuid = crypto.randomUUID()
+		const legacyId = await dbImportTrack(
+			{
+				uuid: legacyUuid,
+				name: 'Legacy',
+				album: 'Legacy Album',
+				artists: ['Legacy Artist'],
+				year: '2019',
+				duration: 60,
+				trackNo: 1,
+				trackOf: 1,
+				discNo: 1,
+				discOf: 1,
+				genre: [],
+				file: { kind: 'server', ...descriptor },
+				scannedAt: Date.now(),
+				fileName: descriptor.path,
+				directory: SERVER_DIRECTORY_ID,
+				metadataVersion: CURRENT_METADATA_VERSION,
+			},
+			undefined,
+		)
+
+		mock.state.catalogTracks = [serverCatalogTrack(descriptor)]
+		await scanServer('server-directory-add')
+
+		const track = await getServerTrackByPath(descriptor.path)
+		expect(track.id).toBe(legacyId)
+		expect(track.uuid).toBe(stableUuid(descriptor.path))
+		expect(track.fileName).toBe(descriptor.path)
+	})
+
+	it('downloads each artwork hash once per import and reuses the IndexedDB record across rescans', async () => {
+		const artwork = serverCatalogArtwork()
+		mock.state.artworkBodies = { [artwork.hash]: 'fake-artwork-bytes' }
+		const v1 = [serverFileDescriptor('Artist/a.mp3'), serverFileDescriptor('Artist/b.mp3')]
+		mock.state.catalogTracks = v1.map((descriptor) =>
+			serverCatalogTrack(descriptor, { artwork }),
+		)
+
+		await scanServer('server-directory-add')
+
+		const db = await getDatabase()
+		const imageRecord = await db.get('images', artwork.hash)
+		expectToBeDefined(imageRecord)
+		expect(imageRecord.hash).toBe(artwork.hash)
+		expect(artworkRequests(mock.requests)).toHaveLength(1)
+
+		// Both files changed on the server: they re-import, the artwork does not re-download.
+		mock.requests.length = 0
+		mock.state.catalogTracks = v1.map((descriptor) =>
+			serverCatalogTrack(
+				serverFileDescriptor(descriptor.path, { size: descriptor.size + 1 }),
+				{
+					artwork,
+				},
+			),
+		)
+		await scanServer('server-directory-rescan')
+
+		expect(artworkRequests(mock.requests)).toHaveLength(0)
+		const imageRecordAfter = await db.get('images', artwork.hash)
+		expectToBeDefined(imageRecordAfter)
+	})
+
+	it('removes server tracks that vanished from a successful full catalog', async () => {
+		mock.state.catalogTracks = [
+			serverCatalogTrack(serverFileDescriptor('Artist/a.mp3')),
+			serverCatalogTrack(serverFileDescriptor('Artist/b.mp3')),
 		]
 		await scanServer('server-directory-add')
 		const localTrackId = await dbImportTestTrack()
@@ -247,7 +298,7 @@ describe('server library scanning', () => {
 			file: new File(['legacy'], 'legacy.mp3', { type: 'audio/mpeg' }),
 		})
 
-		mock.state.files = [serverFileDescriptor('Artist/a.mp3')]
+		mock.state.catalogTracks = [serverCatalogTrack(serverFileDescriptor('Artist/a.mp3'))]
 		await scanServer('server-directory-rescan')
 
 		const serverTracks = await getServerTracks()
@@ -259,15 +310,15 @@ describe('server library scanning', () => {
 		expect(await db.get('tracks', legacyTrackId)).toBeDefined()
 	})
 
-	it('empties the server source when a successful listing returns no files', async () => {
-		mock.state.files = [
-			serverFileDescriptor('Artist/a.mp3'),
-			serverFileDescriptor('Artist/b.mp3'),
+	it('empties the server source when a successful catalog returns no tracks', async () => {
+		mock.state.catalogTracks = [
+			serverCatalogTrack(serverFileDescriptor('Artist/a.mp3')),
+			serverCatalogTrack(serverFileDescriptor('Artist/b.mp3')),
 		]
 		await scanServer('server-directory-add')
 		const localTrackId = await dbImportTestTrack()
 
-		mock.state.files = []
+		mock.state.catalogTracks = []
 		await scanServer('server-directory-rescan')
 
 		await dbGetAllAndExpectLength('tracks', 1)
@@ -275,56 +326,90 @@ describe('server library scanning', () => {
 		expect(await db.get('tracks', localTrackId)).toBeDefined()
 	})
 
-	it('keeps previous tracks and reports the error when the listing request fails', async () => {
-		mock.state.files = [
-			serverFileDescriptor('Artist/a.mp3'),
-			serverFileDescriptor('Artist/b.mp3'),
+	it('keeps previous tracks and reports the error when the catalog request fails', async () => {
+		mock.state.catalogTracks = [
+			serverCatalogTrack(serverFileDescriptor('Artist/a.mp3')),
+			serverCatalogTrack(serverFileDescriptor('Artist/b.mp3')),
 		]
 		await scanServer('server-directory-add')
 		const idsBefore = (await getServerTracks()).map((track) => track.id).sort()
 
-		mock.state.listStatus = 503
+		mock.state.catalogStatuses = [503]
 		await expect(scanServer('server-directory-rescan')).rejects.toThrow()
 
 		const idsAfter = (await getServerTracks()).map((track) => track.id).sort()
 		expect(idsAfter).toEqual(idsBefore)
 	})
 
-	it('keeps previous tracks when individual downloads fail mid-scan', async () => {
-		const pathA = 'Artist/a.mp3'
-		const pathB = 'Artist/b.mp3'
-		mock.state.files = [serverFileDescriptor(pathA), serverFileDescriptor(pathB)]
+	it('waits for the server scan when the first catalog is not ready (409), then imports', async () => {
+		mock.state.catalogStatuses = [409, 200]
+		mock.state.scanStatuses = [
+			{ enabled: true, state: 'scanning', current: 1, total: 3 },
+			{ enabled: true, state: 'ready', current: 3, total: 3 },
+		]
+		mock.state.catalogTracks = [serverCatalogTrack(serverFileDescriptor('Artist/a.mp3'))]
+
 		await scanServer('server-directory-add')
 
-		const trackA = await getServerTrackByPath(pathA)
-		const playlistId = await dbCreatePlaylist('Mix', '')
-		const playlistEntry: Omit<PlaylistEntry, 'id'> = {
-			playlistId,
-			trackId: trackA.id,
-			addedAt: Date.now(),
-		}
-		const db = await getDatabase()
-		await db.add('playlistEntries', playlistEntry as PlaylistEntry)
+		const tracks = await getServerTracks()
+		expect(tracks).toHaveLength(1)
+		expect(tracks[0]?.fileName).toBe('Artist/a.mp3')
+		expect(
+			mock.requests.some((request) => request.pathname === '/api/server-library/status'),
+		).toBe(true)
+		expect(
+			mock.requests.filter((request) => request.pathname === '/api/server-library/catalog'),
+		).toHaveLength(2)
+		expect(mockedParseTrackMetadata).not.toHaveBeenCalled()
+	})
 
-		// `a` changed on the server but its download breaks; `b` is unchanged.
-		mock.state.files = [
-			serverFileDescriptor(pathA, { size: 999_999, lastModified: 1_800_000_000_000 }),
-			serverFileDescriptor(pathB),
+	it('keeps previous records when an artwork download fails mid-scan', async () => {
+		const pathA = 'Artist/a.mp3'
+		const pathB = 'Artist/b.mp3'
+		mock.state.catalogTracks = [
+			serverCatalogTrack(serverFileDescriptor(pathA)),
+			serverCatalogTrack(serverFileDescriptor(pathB)),
 		]
-		mock.state.fileStatuses[pathA] = 500
+		await scanServer('server-directory-add')
+
+		// `a` changed on the server and now declares artwork the server cannot
+		// serve; `b` is unchanged. The artwork hash is absent from artworkBodies,
+		// so the download 404s and the track keeps its previous record.
+		mock.state.catalogTracks = [
+			serverCatalogTrack(
+				serverFileDescriptor(pathA, { size: 999_999, lastModified: 1_800_000_000_000 }),
+				{
+					artwork: serverCatalogArtwork(),
+				},
+			),
+			serverCatalogTrack(serverFileDescriptor(pathB)),
+		]
 		await scanServer('server-directory-rescan')
 
-		// CONTRACTS.md §5: only paths missing from a successful full listing are removed,
+		// CONTRACTS.md §10: only paths missing from a successful full catalog are removed,
 		// so the previous records survive a partial failure.
 		const fileNames = (await getServerTracks()).map((track) => track.fileName).sort()
 		expect(fileNames).toEqual([pathA, pathB].sort())
-		await dbGetAllAndExpectLength('playlistEntries', 1)
+		expect(SERVER_ARTWORK_HASH.length).toBe(64)
+	})
+
+	it('reports a 401 from the server library as an auth error and keeps the library untouched', async () => {
+		mock.state.catalogStatuses = [401]
+
+		const failure = await scanServer('server-directory-add').then(
+			() => undefined,
+			(error: unknown) => error,
+		)
+
+		expect(failure).toBeInstanceOf(ServerLibraryRequestError)
+		expect((failure as ServerLibraryRequestError).code).toBe('AUTH_REQUIRED')
+		await dbGetAllAndExpectLength('tracks', 0)
 	})
 
 	it('removing the server source clears only its own records and makes no HTTP calls', async () => {
-		mock.state.files = [
-			serverFileDescriptor('Artist/a.mp3'),
-			serverFileDescriptor('Artist/b.mp3'),
+		mock.state.catalogTracks = [
+			serverCatalogTrack(serverFileDescriptor('Artist/a.mp3')),
+			serverCatalogTrack(serverFileDescriptor('Artist/b.mp3')),
 		]
 		await scanServer('server-directory-add')
 		const localTrackId = await dbImportTestTrack()

@@ -1,6 +1,10 @@
+import { getCurrentUserId } from '#lib/auth/client.ts'
 import { getDatabase } from '#lib/db/database.ts'
 import { dispatchDatabaseChangedEvent } from '#lib/db/events.ts'
 import { createUIAction } from '#lib/helpers/ui-action.ts'
+import { applyServerActions } from '#lib/user-state/actions.ts'
+import { notifyUserStateSyncError } from '#lib/user-state/notify.ts'
+import { isServerTrackUuid } from '#lib/user-state/snapshot.ts'
 import type { PlayHistoryEntry } from './types.ts'
 
 const PLAY_HISTORY_LIMIT = 100
@@ -12,6 +16,25 @@ const notifyPlayHistoryChange = () => {
 }
 
 export const dbAddToPlayHistory = async (trackId: number): Promise<void> => {
+	if (getCurrentUserId() !== null) {
+		const db = await getDatabase()
+		const track = await db.get('tracks', trackId)
+
+		if (track !== undefined && isServerTrackUuid(track.uuid)) {
+			// Server-first (§9): on failure nothing is written locally and the
+			// user sees an explicit sync error instead of a fake success.
+			try {
+				await applyServerActions([
+					{ action: 'history-record', trackUuid: track.uuid, playedAt: Date.now() },
+				])
+			} catch (error) {
+				notifyUserStateSyncError(error)
+			}
+
+			return
+		}
+	}
+
 	const db = await getDatabase()
 	const tx = db.transaction(['tracks', 'playHistory'], 'readwrite')
 	const tracksStore = tx.objectStore('tracks')
@@ -57,6 +80,21 @@ export const dbAddToPlayHistory = async (trackId: number): Promise<void> => {
 }
 
 export const dbRemoveFromPlayHistory = async (trackId: number): Promise<void> => {
+	if (getCurrentUserId() !== null) {
+		const db = await getDatabase()
+		const track = await db.get('tracks', trackId)
+
+		if (track !== undefined && isServerTrackUuid(track.uuid)) {
+			try {
+				await applyServerActions([{ action: 'history-remove', trackUuid: track.uuid }])
+			} catch (error) {
+				notifyUserStateSyncError(error)
+			}
+
+			return
+		}
+	}
+
 	const db = await getDatabase()
 	const tx = db.transaction('playHistory', 'readwrite')
 	const store = tx.objectStore('playHistory')
@@ -69,6 +107,16 @@ export const dbRemoveFromPlayHistory = async (trackId: number): Promise<void> =>
 }
 
 const dbClearPlayHistory = async (): Promise<void> => {
+	if (getCurrentUserId() !== null) {
+		try {
+			await applyServerActions([{ action: 'history-clear' }])
+		} catch (error) {
+			notifyUserStateSyncError(error)
+		}
+
+		return
+	}
+
 	const db = await getDatabase()
 	await db.clear('playHistory')
 

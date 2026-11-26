@@ -14,10 +14,16 @@ export const scanTracks = async (options: TracksScanOptions): Promise<void> => {
 	const result = await startTrackScannerWorker(options, (data) => {
 		snackbar({
 			id: snackbarId,
-			message: m.settingsScanInProgress({
-				current: data.current,
-				total: data.total,
-			}),
+			message:
+				data.phase === 'server-scan'
+					? m.settingsServerScanInProgress({
+							current: data.current,
+							total: data.total,
+						})
+					: m.settingsScanInProgress({
+							current: data.current,
+							total: data.total,
+						}),
 			controls: false,
 			duration: false,
 		})
@@ -26,7 +32,7 @@ export const scanTracks = async (options: TracksScanOptions): Promise<void> => {
 	if (result.error) {
 		snackbar({
 			id: snackbarId,
-			message: m.settingsScanFailed(),
+			message: result.authRequired ? m.settingsScanAuthRequired() : m.settingsScanFailed(),
 			duration: 8000,
 		})
 

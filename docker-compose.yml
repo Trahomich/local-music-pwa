@@ -1,12 +1,16 @@
-# Snae Player — Docker Compose (контракт: CONTRACTS.md §6)
+# Snae Player — Docker Compose (контракт: CONTRACTS.md §6, §9)
 #
 # Запуск без Node/pnpm на хосте:
 #   docker compose up --build
 #
-# Переменные (задаются в окружении или .env рядом с этим файлом):
-#   SNAE_PORT — порт плеера в общей network namespace Yggdrasil (по умолчанию 3000)
-#   MUSIC_DIR — хостовая директория с музыкой (по умолчанию ./music),
-#               монтируется в контейнер read-only как /music
+# Переменные (задаются в окружении или .env рядом с этим файлом, см. .env.example):
+#   SNAE_PORT               — порт плеера в общей network namespace Yggdrasil (по умолчанию 3000)
+#   MUSIC_DIR               — хостовая директория с музыкой (по умолчанию /data/music),
+#                             монтируется в контейнер read-only как /music
+#   SNAE_ALLOW_REGISTRATION — разрешить регистрацию новых аккаунтов (по умолчанию true)
+#   SNAE_SECURE_COOKIES     — cookie с атрибутом Secure (по умолчанию false; включать только за HTTPS)
+#   SNAE_TRUST_PROXY        — доверять x-forwarded-proto от reverse proxy (по умолчанию false)
+#   SNAE_SCAN_CONCURRENCY   — параллелизм серверного сканера музыки, 1–16 (по умолчанию 4)
 
 services:
   player:
@@ -21,14 +25,31 @@ services:
       HOST: "::"
       PORT: "${SNAE_PORT:-3000}"
       MUSIC_DIR: /music
+      # Постоянные данные (CONTRACTS.md §9): auth.sqlite и library.sqlite.
+      # В Docker DATA_DIR всегда /data (named volume snae-data), локально — ./.data.
+      # DATA_DIR не должен находиться внутри MUSIC_DIR.
+      DATA_DIR: /data
+      SNAE_ALLOW_REGISTRATION: "${SNAE_ALLOW_REGISTRATION:-true}"
+      # Текущий HTTP Yggdrasil: Secure-cookie по умолчанию выключены. Включайте
+      # только при доступе по HTTPS, иначе сессию можно перехватить (см. README).
+      SNAE_SECURE_COOKIES: "${SNAE_SECURE_COOKIES:-false}"
+      # Доверять x-forwarded-proto только за доверенным reverse proxy.
+      SNAE_TRUST_PROXY: "${SNAE_TRUST_PROXY:-false}"
+      SNAE_SCAN_CONCURRENCY: "${SNAE_SCAN_CONCURRENCY:-4}"
     volumes:
       # Только чтение: плеер никогда не изменяет файлы библиотеки
       - "${MUSIC_DIR:-/data/music}:/music:ro"
+      # Аккаунты, пользовательское состояние и музыкальный индекс переживают
+      # restart/down/up (CONTRACTS.md §9); volume не удаляйте при cleanup.
+      - "snae-data:/data"
     restart: unless-stopped
     healthcheck:
       test:
         - CMD-SHELL
-        - node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/server-library/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        # Публичный lightweight liveness endpoint (CONTRACTS.md §9, добавлен в #15):
+        # protected API отвечает 401 без сессии, поэтому healthcheck строго на /api/health.
+        # Endpoint не раскрывает users/config/paths; защита музыки/user-state не ослабляется.
+        - node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
       interval: 30s
       timeout: 5s
       start_period: 10s
@@ -43,3 +64,6 @@ services:
       - /dev/net/tun:/dev/net/tun
     volumes:
       - ./yggdrasil:/etc/yggdrasil-network
+
+volumes:
+  snae-data:

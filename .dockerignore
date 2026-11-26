@@ -15,3 +15,8 @@ test-results
 # Локальная музыка пользователя никогда не попадает в образ:
 # в runtime она монтируется read-only через compose volume
 music
+
+# Постоянные данные и БД (CONTRACTS.md §9): в runtime named volume
+# snae-data монтируется в /data; локальный ./.data и SQLite не попадают в образ
+.data
+**/*.sqlite*

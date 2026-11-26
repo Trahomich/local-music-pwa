@@ -31,15 +31,26 @@ FROM node:26-alpine AS runtime
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
-    MUSIC_DIR=/music
+    MUSIC_DIR=/music \
+    DATA_DIR=/data
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY server ./server
-# Изоморфный модуль API: server/ импортирует его через #lib (package.json#imports)
+# Изоморфные модули API: server/ импортирует их через относительные пути
+# (src/lib/server-library — file API; src/lib/auth — username/сессии;
+# src/lib/library — типы и нормализация тегов для серверного сканера).
+# Их runtime-импортов за пределы этих каталогов нет (только type-only, стрипятся).
 COPY src/lib/server-library ./src/lib/server-library
+COPY src/lib/auth ./src/lib/auth
+COPY src/lib/library ./src/lib/library
 COPY --from=build /app/build ./build
-# Непривилегированный пользователь образа node (uid 1000); запись на ФС не нужна
+# Каталог постоянных данных (CONTRACTS.md §9): сюда монтируется named volume
+# snae-data. Свежий named volume наследует владельца каталога из образа, поэтому
+# создаём /data и отдаём его uid 1000 до USER node: приложение сможет писать
+# auth.sqlite/library.sqlite. Музыка (/music) остаётся read-only mount'ом.
+RUN mkdir -p /data && chown node:node /data
+# Непривилегированный пользователь образа node (uid 1000); запись только в /data
 USER node
 EXPOSE 3000
 CMD ["node", "server/index.ts"]

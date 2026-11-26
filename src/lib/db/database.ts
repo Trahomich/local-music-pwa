@@ -1,5 +1,6 @@
 import type { DBSchema, IDBPDatabase, IDBPObjectStore, IndexNames, StoreNames } from 'idb'
 import { openDB } from 'idb'
+import { bootstrapAuth, getCurrentUserId, registerAuthChangeHandler } from '#lib/auth/client.ts'
 import type {
 	Album,
 	Artist,
@@ -122,8 +123,8 @@ const createStore = <DBTypes extends DBSchema | unknown, Name extends StoreNames
 		autoIncrement: true,
 	})
 
-const openAppDatabase = () =>
-	openDB<AppDB>('snae-app-data', 4, {
+const openAppDatabase = (name: string) =>
+	openDB<AppDB>(name, 4, {
 		async upgrade(db, oldVersion, _newVersion, tx) {
 			const { objectStoreNames } = db
 
@@ -241,30 +242,97 @@ const openAppDatabase = () =>
 	})
 
 type AppIDBDatabase = IDBPDatabase<AppDB>
-let dbPromise: Promise<AppIDBDatabase> | AppIDBDatabase | null = null
 
-export const getDatabase = (): Promise<AppIDBDatabase> | AppIDBDatabase => {
-	if (dbPromise !== null) {
+/**
+ * The pre-auth database of the anonymous/legacy local profile (§9). Its
+ * name and data are kept untouched so static hosting and existing users
+ * keep working exactly as before.
+ */
+const ANONYMOUS_APP_DATABASE_NAME = 'snae-app-data'
+
+/**
+ * Every account gets its own isolated database (§9): profiles of different
+ * accounts never share playlists, history, directories or tracks, and no
+ * automatic migration or merge between them ever happens.
+ */
+const getUserAppDatabaseName = (userId: string): string => `snae-app-data-user-${userId}`
+
+let dbPromise: Promise<AppIDBDatabase> | AppIDBDatabase | null = null
+let openDatabaseName: string | null = null
+
+export const getDatabase = async (): Promise<AppIDBDatabase> => {
+	// The profile namespace must be resolved before any database is opened,
+	// so child loaders never touch another profile's data (§9).
+	await bootstrapAuth()
+
+	const userId = getCurrentUserId()
+	const databaseName =
+		userId === null ? ANONYMOUS_APP_DATABASE_NAME : getUserAppDatabaseName(userId)
+
+	if (dbPromise !== null && openDatabaseName === databaseName) {
 		return dbPromise
 	}
 
-	dbPromise = openAppDatabase()
+	if (dbPromise !== null) {
+		// The namespace changed without a page reload (only possible in
+		// tests; the app always reloads on profile switch).
+		await closeAppDatabase()
+	}
 
-	dbPromise
-		.then((db) => {
-			db.onclose = () => {
+	openDatabaseName = databaseName
+	const opening = openAppDatabase(databaseName)
+	dbPromise = opening
+
+	try {
+		const db = await opening
+
+		db.onclose = () => {
+			if (openDatabaseName === databaseName) {
 				dbPromise = null
+				openDatabaseName = null
 			}
+		}
 
-			// Micro optimization to avoid unwrapping the promise
+		// Micro optimization to avoid unwrapping the promise
+		if (dbPromise === opening) {
 			dbPromise = db
-		})
-		.catch(() => {
-			dbPromise = null
-		})
+		}
 
-	return dbPromise
+		return db
+	} catch (error) {
+		if (dbPromise === opening) {
+			dbPromise = null
+			openDatabaseName = null
+		}
+
+		throw error
+	}
 }
+
+/**
+ * Closes the open database connection and resets the singleton so the next
+ * {@link getDatabase} call opens the database of the current namespace.
+ */
+export const closeAppDatabase = async (): Promise<void> => {
+	const current = dbPromise
+	dbPromise = null
+	openDatabaseName = null
+
+	if (current === null) {
+		return
+	}
+
+	try {
+		const db = await current
+		db.close()
+	} catch {
+		// Opening had already failed; nothing to close.
+	}
+}
+
+// A profile switch (login/register/logout) must not leave an open
+// connection to the previous profile's database behind.
+registerAuthChangeHandler(closeAppDatabase)
 
 export type DbKey<Name extends AppStoreNames> = AppDB[Name]['key']
 export type DbValue<Name extends AppStoreNames> = AppDB[Name]['value']

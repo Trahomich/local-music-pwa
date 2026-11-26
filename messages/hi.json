@@ -35,6 +35,7 @@
 	"description": "विवरण",
 	"directoryIsIncludedInParent": "\"{newDir}\" आपकी लाइब्रेरी में पहले से मौजूद \"{existingDir}\" की उप-निर्देशिका है। आपको इसे दोबारा जोड़ने की आवश्यकता नहीं है।",
 	"dismiss": "खारिज करें",
+	"downloadAlbum": "एल्बम डाउनलोड करें",
 	"downloadPlaylist": "प्लेलिस्ट डाउनलोड करें",
 	"downloadPlaylistCancel": "डाउनलोड रद्द करें",
 	"downloadPlaylistCancelled": "डाउनलोड रद्द किया गया",

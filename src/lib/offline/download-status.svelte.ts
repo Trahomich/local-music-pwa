@@ -90,7 +90,7 @@ const ensureStarted = (): void => {
 
 	// A batch may already be running when the UI first subscribes. The read is
 	// deferred: ensureStarted() also runs inside a $derived during render
-	// (PlaylistDownloadControls on the playlist detail page), where a
+	// (CollectionDownloadControls on the playlist/album detail page), where a
 	// synchronous $state mutation throws state_unsafe_mutation.
 	queueMicrotask(() => {
 		batchInfo = getActiveBatch()
@@ -136,8 +136,9 @@ export const getTrackDownloadStatus = (track: Track): TrackDownloadStatus | unde
 }
 
 /**
- * The running playlist batch progress (`{playlistId, done, total}`), or null.
- * Reactive; use it for the playlist detail progress UI.
+ * The running playlist/album batch progress
+ * (`{playlistId?, albumId?, label, currentTrackName?, done, total}`), or null.
+ * Reactive; use it for the collection detail progress UI.
  */
 export const getBatchProgress = (): ActiveBatchInfo | null => {
 	ensureStarted()

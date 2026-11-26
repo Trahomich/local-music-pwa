@@ -35,6 +35,7 @@
 	"description": "Descripción",
 	"directoryIsIncludedInParent": "\"{newDir}\" es un subdirectorio de \"{existingDir}\", que ya está en tu biblioteca. No necesitas añadirlo de nuevo.",
 	"dismiss": "Descartar",
+	"downloadAlbum": "Descargar álbum",
 	"downloadPlaylist": "Descargar lista de reproducción",
 	"downloadPlaylistCancel": "Cancelar descarga",
 	"downloadPlaylistCancelled": "Descarga cancelada",

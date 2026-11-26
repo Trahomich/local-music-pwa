@@ -35,6 +35,7 @@
 	"description": "Описание",
 	"directoryIsIncludedInParent": "\"{newDir}\" является подкаталогом \"{existingDir}\", который уже добавлен в вашу библиотеку. Добавлять его снова не нужно.",
 	"dismiss": "Закрыть",
+	"downloadAlbum": "Скачать альбом",
 	"downloadPlaylist": "Скачать плейлист целиком",
 	"downloadPlaylistCancel": "Отменить скачивание",
 	"downloadPlaylistCancelled": "Скачивание отменено",

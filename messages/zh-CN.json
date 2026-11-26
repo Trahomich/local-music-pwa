@@ -35,6 +35,7 @@
 	"description": "描述",
 	"directoryIsIncludedInParent": "\"{newDir}\" 是 \"{existingDir}\" 的子目录，而 \"{existingDir}\" 已经在您的媒体库中。您无需再次添加。",
 	"dismiss": "忽略",
+	"downloadAlbum": "下载专辑",
 	"downloadPlaylist": "下载整个播放列表",
 	"downloadPlaylistCancel": "取消下载",
 	"downloadPlaylistCancelled": "下载已取消",

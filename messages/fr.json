@@ -35,6 +35,7 @@
 	"description": "Description",
 	"directoryIsIncludedInParent": "« {newDir} » est un sous-dossier de « {existingDir} » qui est déjà dans votre bibliothèque. Vous n’avez pas besoin de l’ajouter à nouveau.",
 	"dismiss": "Fermer",
+	"downloadAlbum": "Télécharger l'album",
 	"downloadPlaylist": "Télécharger la playlist",
 	"downloadPlaylistCancel": "Annuler le téléchargement",
 	"downloadPlaylistCancelled": "Téléchargement annulé",

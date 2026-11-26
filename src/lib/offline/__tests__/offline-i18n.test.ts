@@ -18,6 +18,7 @@ const OFFLINE_KEYS = [
 	'trackDownloading',
 	'trackDownloadFailed',
 	'trackDownloadRemoved',
+	'downloadAlbum',
 	'downloadPlaylist',
 	'downloadPlaylistCancel',
 	'downloadPlaylistProgress',

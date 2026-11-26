@@ -35,6 +35,7 @@
 	"description": "Description",
 	"directoryIsIncludedInParent": "\"{newDir}\" is subdirectory of \"{existingDir}\" which is already in your Library. You do not need to add it again.",
 	"dismiss": "Dismiss",
+	"downloadAlbum": "Download album",
 	"downloadPlaylist": "Download playlist",
 	"downloadPlaylistCancel": "Cancel download",
 	"downloadPlaylistCancelled": "Download cancelled",

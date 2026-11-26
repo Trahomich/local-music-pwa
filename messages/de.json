@@ -35,6 +35,7 @@
 	"description": "Beschreibung",
 	"directoryIsIncludedInParent": "\"{newDir}\" ist ein Unterverzeichnis von \"{existingDir}\" das bereits in Ihrer Bibliothek vorhanden ist. Eine erneute Hinzufügung ist nicht erforderlich.",
 	"dismiss": "Schließen",
+	"downloadAlbum": "Album herunterladen",
 	"downloadPlaylist": "Playlist herunterladen",
 	"downloadPlaylistCancel": "Download abbrechen",
 	"downloadPlaylistCancelled": "Download abgebrochen",

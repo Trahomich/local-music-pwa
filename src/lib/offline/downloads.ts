@@ -30,9 +30,16 @@ export interface PlaylistDownloadResult {
 	cancelled: boolean
 }
 
-/** Snapshot of the currently running playlist batch, for progress UI. */
+/** Snapshot of the currently running playlist/album batch, for progress UI. */
 export interface ActiveBatchInfo {
-	playlistId: number
+	/** Set when the batch downloads a playlist (its id, favorites included). */
+	playlistId?: number
+	/** Set when the batch downloads an album (its id). */
+	albumId?: number
+	/** Collection name shown in the progress UI; '' when unknown. */
+	label: string
+	/** Name of the track currently being processed, when there is one. */
+	currentTrackName?: string
 	done: number
 	total: number
 }
@@ -114,10 +121,13 @@ export const isTrackDownloadActive = (trackUuid: string): boolean =>
 /** The error of the track's last failed download, until a retry starts. */
 export const getTrackDownloadError = (trackUuid: string): unknown => lastTrackErrors.get(trackUuid)
 
-/** The running playlist batch, if any. */
+/** The running playlist/album batch, if any. */
 export const getActiveBatch = (): ActiveBatchInfo | null =>
 	activeBatch && {
 		playlistId: activeBatch.playlistId,
+		albumId: activeBatch.albumId,
+		label: activeBatch.label,
+		currentTrackName: activeBatch.currentTrackName,
 		done: activeBatch.done,
 		total: activeBatch.total,
 	}
@@ -274,10 +284,16 @@ const estimateMissingBytes = async (tracks: readonly Track[]): Promise<number> =
 	return neededBytes
 }
 
+/** What a batch downloads: its collection identity plus the tracks, resolved lazily. */
+interface BatchSource {
+	identity: Pick<ActiveBatchInfo, 'playlistId' | 'albumId'>
+	load: (
+		db: Awaited<ReturnType<typeof getDatabase>>,
+	) => Promise<{ label: string; tracks: Track[] }>
+}
+
 /**
- * Downloads every track of the playlist as it is right now (its current
- * `playlistEntries`, favorites pseudo-playlist included). Duplicate entries
- * of one track are downloaded once.
+ * Shared playlist/album batch runner (CONTRACTS.md §12).
  *
  * Two tracks download concurrently; one shared AbortController backs the
  * whole batch. A failing track increments `failed` and never stops the rest;
@@ -285,30 +301,26 @@ const estimateMissingBytes = async (tracks: readonly Track[]): Promise<number> =
  * While a batch runs, further calls return the same promise — no parallel
  * duplicate batches.
  */
-export const downloadPlaylist = (playlistId: number): Promise<PlaylistDownloadResult> => {
+const startBatch = (source: BatchSource): Promise<PlaylistDownloadResult> => {
 	if (activeBatch) {
 		return activeBatch.promise
 	}
 
 	const controller = new AbortController()
 	const batch: ActiveBatch = {
-		playlistId,
-		controller,
+		...source.identity,
+		label: '',
 		done: 0,
 		total: 0,
+		controller,
 		promise: undefined as unknown as Promise<PlaylistDownloadResult>,
 	}
 
 	const run = async (): Promise<PlaylistDownloadResult> => {
 		const db = await getDatabase()
-		const entries = await db.getAllFromIndex('playlistEntries', 'playlistId', playlistId)
+		const { label, tracks } = await source.load(db)
 
-		// The batch is exactly this playlist's current entries; duplicate
-		// entries of one track download (and count) once.
-		const trackIds = [...new Set(entries.map((entry) => entry.trackId))]
-		const foundTracks = await Promise.all(trackIds.map((id) => db.get('tracks', id)))
-		const tracks = foundTracks.filter((track) => track !== undefined)
-
+		batch.label = label
 		batch.total = tracks.length
 		notifyListeners()
 
@@ -334,6 +346,9 @@ export const downloadPlaylist = (playlistId: number): Promise<PlaylistDownloadRe
 				if (!track) {
 					return
 				}
+
+				batch.currentTrackName = track.name
+				notifyListeners()
 
 				try {
 					if (isServerFileEntity(track.file)) {
@@ -361,6 +376,8 @@ export const downloadPlaylist = (playlistId: number): Promise<PlaylistDownloadRe
 
 		await Promise.all(Array.from({ length: BATCH_CONCURRENCY }, () => worker()))
 
+		batch.currentTrackName = undefined
+
 		if (controller.signal.aborted) {
 			result.cancelled = true
 		}
@@ -374,15 +391,66 @@ export const downloadPlaylist = (playlistId: number): Promise<PlaylistDownloadRe
 	})
 
 	activeBatch = batch
-	notifyListeners()
 
 	return batch.promise
 }
 
 /**
- * Aborts the running playlist batch and any in-flight single-track downloads.
- * Partially downloaded files are never persisted: the blob is written to the
- * offline store only after it has been fetched in full.
+ * Downloads every track of the playlist as it is right now (its current
+ * `playlistEntries`, favorites pseudo-playlist included). Duplicate entries
+ * of one track are downloaded once. See {@link startBatch} for the shared
+ * batch semantics.
+ */
+export const downloadPlaylist = (playlistId: number): Promise<PlaylistDownloadResult> =>
+	startBatch({
+		identity: { playlistId },
+		load: async (db) => {
+			const [entries, playlist] = await Promise.all([
+				db.getAllFromIndex('playlistEntries', 'playlistId', playlistId),
+				db.get('playlists', playlistId),
+			])
+
+			// The batch is exactly this playlist's current entries; duplicate
+			// entries of one track download (and count) once.
+			const trackIds = [...new Set(entries.map((entry) => entry.trackId))]
+			const foundTracks = await Promise.all(trackIds.map((id) => db.get('tracks', id)))
+
+			return {
+				label: playlist?.name ?? '',
+				tracks: foundTracks.filter((track) => track !== undefined),
+			}
+		},
+	})
+
+/**
+ * Downloads every track of the album right now. The `tracks` `album` index
+ * is keyed by the album *name* (`Album.id` is the object key, not an index
+ * value), which is also exactly how the album detail page lists its tracks.
+ * See {@link startBatch} for the shared batch semantics.
+ */
+export const downloadAlbum = (albumId: number): Promise<PlaylistDownloadResult> =>
+	startBatch({
+		identity: { albumId },
+		load: async (db) => {
+			const album = await db.get('albums', albumId)
+			if (!album) {
+				return { label: '', tracks: [] }
+			}
+
+			const trackIds = await db.getAllKeysFromIndex('tracks', 'album', album.name)
+			const foundTracks = await Promise.all(trackIds.map((id) => db.get('tracks', id)))
+
+			return {
+				label: album.name,
+				tracks: foundTracks.filter((track) => track !== undefined),
+			}
+		},
+	})
+
+/**
+ * Aborts the running playlist/album batch and any in-flight single-track
+ * downloads. Partially downloaded files are never persisted: the blob is
+ * written to the offline store only after it has been fetched in full.
  */
 export const cancelDownloads = (): void => {
 	activeBatch?.controller.abort()

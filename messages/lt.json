@@ -35,6 +35,7 @@
 	"description": "Aprašymas",
 	"directoryIsIncludedInParent": "\"{newDir}\" yra \"{existingDir}\" poaplankis, kuris jau yra jūsų bibliotekoje. Jums nereikia jo pridėti dar kartą.",
 	"dismiss": "Uždaryti",
+	"downloadAlbum": "Atsisiųsti albumą",
 	"downloadPlaylist": "Atsisiųsti grojaraštį",
 	"downloadPlaylistCancel": "Atšaukti atsisiuntimą",
 	"downloadPlaylistCancelled": "Atsisiuntimas atšauktas",

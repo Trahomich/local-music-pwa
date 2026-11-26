@@ -35,6 +35,7 @@
 	"description": "説明",
 	"directoryIsIncludedInParent": "「{newDir}」は、すでにライブラリに含まれている「{existingDir}」のサブディレクトリです。再度追加する必要はありません。",
 	"dismiss": "閉じる",
+	"downloadAlbum": "アルバムをダウンロード",
 	"downloadPlaylist": "プレイリストをダウンロード",
 	"downloadPlaylistCancel": "ダウンロードをキャンセル",
 	"downloadPlaylistCancelled": "ダウンロードをキャンセルしました",

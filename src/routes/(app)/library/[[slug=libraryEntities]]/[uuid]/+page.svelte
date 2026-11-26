@@ -2,10 +2,10 @@
 	import { MediaQuery } from 'svelte/reactivity'
 	import Artwork from '#lib/components/Artwork.svelte'
 	import Button from '#lib/components/Button.svelte'
+	import CollectionDownloadControls from '#lib/components/CollectionDownloadControls.svelte'
 	import Header from '#lib/components/Header.svelte'
 	import Icon from '#lib/components/icon/Icon.svelte'
 	import MenuButton from '#lib/components/MenuButton.svelte'
-	import PlaylistDownloadControls from '#lib/components/PlaylistDownloadControls.svelte'
 	import TracksListContainer from '#lib/components/tracks/TracksListContainer.svelte'
 	import {
 		createTrackRowsSource,
@@ -233,7 +233,15 @@
 				</Button>
 
 				{#if slug === 'playlists'}
-					<PlaylistDownloadControls playlistId={item.id} trackIds={rows.trackIds()} />
+					<CollectionDownloadControls
+						collection={{ type: 'playlist', id: item.id }}
+						trackIds={rows.trackIds()}
+					/>
+				{:else if slug === 'albums'}
+					<CollectionDownloadControls
+						collection={{ type: 'album', id: item.id }}
+						trackIds={rows.trackIds()}
+					/>
 				{/if}
 
 				{#if menuItems}

@@ -26,7 +26,8 @@
 	}
 </script>
 
-{#if authState.status === 'authenticated'}
+{#if authState.status === 'authenticated' || authState.status === 'offline'}
+	<!-- The offline profile (§12) keeps the account section visible; sign-out needs the network. -->
 	<section class="card settings-max-width mx-auto mt-6 w-full text-body-lg">
 		<div class="px-4 pt-4 text-title-sm text-onSurfaceVariant">{m.authAccount()}</div>
 

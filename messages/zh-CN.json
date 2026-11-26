@@ -1,19 +1,15 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
-
 	"about": "关于",
 	"aboutHomepage": "主页",
 	"aboutJoinDiscord": "加入我们的 Discord",
 	"aboutPrivacy": "隐私",
 	"aboutSourceCode": "源代码",
-
 	"album": "专辑",
 	"albums": "专辑",
-
 	"appName": "Snae 播放器",
 	"appNameShort": "Snae",
 	"appUpdateAvailable": "应用有可用更新",
-
 	"artist": "艺术家",
 	"artists": "艺术家",
 	"authAccount": "Account",
@@ -27,6 +23,7 @@
 	"authErrorUsernameTaken": "This username is already taken",
 	"authGateDescription": "Sign in to access your library: playlists, favorites and history are stored in your account",
 	"authLogout": "Sign out",
+	"authOfflineBanner": "您已离线。更改会保存在此设备上，网络恢复后将自动同步。",
 	"authPassword": "Password",
 	"authPasswordHint": "8–128 characters",
 	"authSignedInAs": "Signed in as {username}",
@@ -38,6 +35,12 @@
 	"description": "描述",
 	"directoryIsIncludedInParent": "\"{newDir}\" 是 \"{existingDir}\" 的子目录，而 \"{existingDir}\" 已经在您的媒体库中。您无需再次添加。",
 	"dismiss": "忽略",
+	"downloadPlaylist": "下载整个播放列表",
+	"downloadPlaylistCancel": "取消下载",
+	"downloadPlaylistCancelled": "下载已取消",
+	"downloadPlaylistProgress": "正在下载 {done}/{total}",
+	"downloadPlaylistResult": "已下载：{downloaded} · 已离线：{current} · 跳过本地：{skippedLocal} · 失败：{failed}",
+	"downloadQuotaError": "可用存储空间不足，无法下载",
 	"duration": "时长",
 	"equalizerClose": "关闭",
 	"equalizerOpenEqualizer": "打开均衡器",
@@ -54,7 +57,6 @@
 	"equalizerReset": "重置",
 	"equalizerStatusEnabled": "已启用",
 	"equalizerTitle": "均衡器",
-
 	"errorPageDoesNotExist": "看起来此页面不存在。",
 	"errorUnexpected": "发生了一个意外错误。",
 	"favorites": "收藏夹",
@@ -72,7 +74,6 @@
 	"libraryDirPromptBrowserPermission": "需要浏览器权限",
 	"libraryDirPromptExplanation": "要播放音乐，应用需要访问这些目录的权限：",
 	"libraryDirPromptGrant": "授权",
-
 	"libraryEditPlaylist": "编辑播放列表",
 	"libraryEditPlaylistName": "编辑播放列表名称",
 	"libraryEmpty": "您的媒体库是空的",
@@ -80,7 +81,6 @@
 	"libraryItemRemovedFromLibrary": "项目已从媒体库中移除",
 	"libraryItemsRemovedFromLibrary": "项目已从媒体库中移除",
 	"libraryNewPlaylist": "新播放列表",
-
 	"libraryNoResults": "未找到结果",
 	"libraryNoResultsExplanation": "尝试搜索其他内容",
 	"libraryOpenApplicationMenu": "打开应用菜单",
@@ -94,7 +94,6 @@
 	"libraryRemove": "移除",
 	"libraryRemoveFromLibrary": "从媒体库中移除",
 	"librarySave": "保存",
-
 	"librarySearch": "搜索",
 	"librarySelectSomethingToBeShown": "从列表中选择要在此处显示的内容",
 	"librarySplitViewDisable": "禁用分屏视图布局",
@@ -102,7 +101,6 @@
 	"libraryStartByAdding": "首先添加一些音乐",
 	"libraryToggleSortOrder": "切换排序方式",
 	"libraryTrackRemovedFromPlaylist": "曲目已从播放列表中移除",
-
 	"libraryTrackRemoveFromPlaylist": "从播放列表中移除",
 	"libraryTracksCount": "{count} 首曲目",
 	"libraryViewDetails": "查看详情",
@@ -112,7 +110,6 @@
 	"noItemsToDisplay": "没有要显示的项目",
 	"pause": "暂停",
 	"play": "播放",
-
 	"player": "播放器",
 	"playerAddToQueue": "添加到队列",
 	"playerAudio": "音频",
@@ -156,16 +153,13 @@
 	"reload": "重新加载",
 	"replace": "替换",
 	"replaceDirectoryExplanation": "您要添加的目录 {newDir} 是 {existingDirs} 的父目录，而 {existingDirs} 已经存在于您的媒体库中。\n 对您媒体库中现有的曲目不会进行任何更改。",
-
 	"replaceDirectoryQ": "替换目录？",
 	"selectAll": "全选",
 	"selectedCount": "已选择 {count}",
 	"settingPickColorFromArtwork": "自动从当前播放歌曲的专辑封面中选取颜色",
 	"settings": "设置",
 	"settingsAbout": "关于",
-
 	"settingsAddDirectory": "添加目录",
-
 	"settingsAllDataLocal": "Playlists, favorites, history and settings always stay on this device",
 	"settingsAppearance": "外观",
 	"settingsApplicationTheme": "应用主题",
@@ -220,13 +214,17 @@
 	"settingsThemeLight": "浅色",
 	"settingsTracksInAppStorageTooltip": "这包含存储在应用存储中的曲目和/或您从 Snae Player v1 迁移的数据",
 	"settingsTracksInsideAppMemory": "应用存储中的曲目",
-
 	"shuffle": "随机播放",
 	"successfullyRemovedTracks": "成功移除 {count} 首曲目",
 	"track": "曲目",
 	"trackAddToFavorites": "添加到收藏夹",
-
+	"trackDownloadFailed": "无法下载该曲目",
+	"trackDownloadForOffline": "下载以供离线播放",
+	"trackDownloading": "正在下载…",
+	"trackDownloadRemoved": "已删除下载",
+	"trackDownloadUpdate": "更新离线副本",
 	"trackPlay": "播放 {name}",
+	"trackRemoveDownload": "删除已下载",
 	"trackRemoveFromFavorites": "从收藏夹中移除",
 	"tracks": "曲目",
 	"trackViewAlbum": "查看专辑",
@@ -236,7 +234,6 @@
 	"userStateSyncFailed": "Couldn't sync your changes. Check your connection and try again.",
 	"validationMaxLength": "最多允许 {max} 个字符",
 	"validationMinLength": "至少需要 {min} 个字符",
-
 	"validationRequired": "必填字段",
 	"year": "年份"
 }

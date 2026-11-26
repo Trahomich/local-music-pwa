@@ -51,6 +51,13 @@ self.addEventListener('fetch', (event) => {
 		return
 	}
 
+	// API and user-state traffic is never served from cache (§12): an
+	// offline /auth/me must reach the browser as a real network error so
+	// the auth client can fall back to the stored offline profile.
+	if (url.pathname.startsWith('/api/')) {
+		return
+	}
+
 	const isNavigationRequest = request.mode === 'navigate'
 
 	if (!(ASSETS.includes(url.pathname) || isNavigationRequest)) {

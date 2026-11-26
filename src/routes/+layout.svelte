@@ -30,5 +30,14 @@
 	<!-- Self-hosted auth gate (§9): the static shell loads, but the app stays hidden until sign-in. -->
 	<AuthScreen />
 {:else}
+	{#if data.authState.status === 'offline'}
+		<!-- Offline profile (§12): the app runs on the local per-user database until the network is back. -->
+		<div
+			role="status"
+			class="sticky top-0 z-50 flex items-center justify-center gap-2 border-b border-primary/10 bg-surfaceContainerHighest px-4 py-2 text-center text-body-md text-onSurface"
+		>
+			{m.authOfflineBanner()}
+		</div>
+	{/if}
 	{@render children()}
 {/if}

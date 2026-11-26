@@ -10,8 +10,17 @@
  * the previous profile's data.
  *
  * Static hosting without a backend keeps working: when the auth API is
- * absent (HTML 404, SPA fallback, network failure) the client stays in
- * the `local-only` mode and the app behaves exactly as before.
+ * absent (HTML 404, SPA fallback) the client stays in the `local-only`
+ * mode and the app behaves exactly as before.
+ *
+ * Offline profile (CONTRACTS.md §12): after every successful
+ * bootstrap/login/register the `{id, username}` pair is stored in
+ * localStorage under `snae-offline-user` (never a password or token).
+ * When `/auth/me` fails with a network error/timeout and a valid marker
+ * exists, the bootstrap resolves to the `offline` state: the app opens
+ * the same per-user database and keeps working without the network.
+ * Only an explicit JSON `AUTH_REQUIRED` 401 and a successful logout
+ * remove the marker.
  */
 
 import {
@@ -24,6 +33,8 @@ import {
 
 export type AuthState =
 	| { status: 'authenticated'; user: AuthUser }
+	/** Backend unreachable, but a previously signed-in profile is known: keep its namespace. */
+	| { status: 'offline'; user: AuthUser }
 	/** Auth backend is present but there is no valid session: show the auth gate. */
 	| { status: 'unauthenticated' }
 	/** No auth backend (static hosting): the previous local-only mode. */
@@ -77,6 +88,47 @@ const tryParseJson = async <T>(response: Response): Promise<T | null> => {
 	}
 }
 
+/**
+ * Offline profile marker (§12): the last successfully signed-in user as
+ * `{id, username}` in localStorage, so a network failure can reopen the
+ * same per-user database instead of dropping to the anonymous profile.
+ */
+const OFFLINE_USER_MARKER_KEY = 'snae-offline-user'
+
+const readOfflineUserMarker = (): AuthUser | null => {
+	try {
+		const raw = window.localStorage.getItem(OFFLINE_USER_MARKER_KEY)
+		if (raw === null) {
+			return null
+		}
+
+		const parsed: unknown = JSON.parse(raw)
+		return isAuthUser(parsed) ? { id: parsed.id, username: parsed.username } : null
+	} catch {
+		// Unavailable storage (private mode) or corrupted JSON: no offline profile.
+		return null
+	}
+}
+
+const writeOfflineUserMarker = (user: AuthUser): void => {
+	try {
+		window.localStorage.setItem(
+			OFFLINE_USER_MARKER_KEY,
+			JSON.stringify({ id: user.id, username: user.username }),
+		)
+	} catch {
+		// Best effort only: without storage the offline restore simply won't happen.
+	}
+}
+
+const clearOfflineUserMarker = (): void => {
+	try {
+		window.localStorage.removeItem(OFFLINE_USER_MARKER_KEY)
+	} catch {
+		// Nothing to clean up when storage is unavailable.
+	}
+}
+
 const parseAuthMeResponse = async (response: Response): Promise<AuthState> => {
 	if (response.status === 401) {
 		// Gate only on an explicit JSON AUTH_REQUIRED from our backend; any
@@ -109,10 +161,25 @@ const fetchAuthMe = async (): Promise<AuthState> => {
 			signal: AbortSignal.timeout(AUTH_REQUEST_TIMEOUT_MS),
 		})
 	} catch {
-		return { status: 'local-only' }
+		// Network failure or timeout (§12): a known profile keeps working
+		// offline inside its own namespace; without a marker this is the
+		// local-only mode as before.
+		const marker = readOfflineUserMarker()
+		return marker === null ? { status: 'local-only' } : { status: 'offline', user: marker }
 	}
 
-	return parseAuthMeResponse(response)
+	const state = await parseAuthMeResponse(response)
+
+	// A successful bootstrap (re)writes the marker, so an account switch
+	// overwrites it; only an explicit JSON AUTH_REQUIRED invalidates it.
+	// HTML fallbacks and other non-JSON answers leave the marker untouched.
+	if (state.status === 'authenticated') {
+		writeOfflineUserMarker(state.user)
+	} else if (state.status === 'unauthenticated') {
+		clearOfflineUserMarker()
+	}
+
+	return state
 }
 
 /**
@@ -145,11 +212,15 @@ export const getAuthState = (): AuthState => authState
 /**
  * Seam for the user-state sync (§9): synchronously returns the user id of
  * the finished bootstrap without any new network request, or `null` in the
- * local-only/unauthenticated mode. The numeric API id is stringified so
- * the same value works as an IndexedDB namespace and as a wire id.
+ * local-only/unauthenticated mode. The offline state (§12) keeps the same
+ * id, so the per-user database opens without the network. The numeric API
+ * id is stringified so the same value works as an IndexedDB namespace and
+ * as a wire id.
  */
 export const getCurrentUserId = (): string | null =>
-	authState.status === 'authenticated' ? String(authState.user.id) : null
+	authState.status === 'authenticated' || authState.status === 'offline'
+		? String(authState.user.id)
+		: null
 
 type AuthChangeHandler = () => void | Promise<void>
 const changeHandlers = new Set<AuthChangeHandler>()
@@ -246,12 +317,14 @@ const postCredentials = async (
  */
 export const login = async (username: string, password: string): Promise<void> => {
 	const user = await postCredentials('login', username, password)
+	writeOfflineUserMarker(user)
 	await applySessionChange({ status: 'authenticated', user })
 }
 
 /** Creates an account, signs in and reloads like {@link login}. */
 export const register = async (username: string, password: string): Promise<void> => {
 	const user = await postCredentials('register', username, password)
+	writeOfflineUserMarker(user)
 	await applySessionChange({ status: 'authenticated', user })
 }
 
@@ -280,5 +353,7 @@ export const logout = async (): Promise<void> => {
 		throw await errorFromResponse(response)
 	}
 
+	// A completed logout must not leave an offline profile behind (§12).
+	clearOfflineUserMarker()
 	await applySessionChange({ status: 'unauthenticated' })
 }

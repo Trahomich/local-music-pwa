@@ -210,6 +210,7 @@ export class PlayerStore {
 				entity: track.file,
 				// Preload should stay silent
 				askPermission: reason === 'load',
+				trackUuid: track.uuid,
 			})
 
 			return {

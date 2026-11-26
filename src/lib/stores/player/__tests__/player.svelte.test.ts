@@ -1,61 +1,72 @@
 import { flushSync } from 'svelte'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resolveTrackFile } from '#lib/helpers/file-resolver.ts'
+import { SERVER_DIRECTORY_ID } from '#lib/library/types.ts'
 import { PlayerStore } from '#lib/stores/player/player.svelte.ts'
 
 interface MockOptions {
 	onTrackEnded: () => void
 	onError: (reason: string) => void
 	isGaplessEnabled: () => boolean
+	trackLoader: (trackId: number, reason: string) => Promise<unknown>
 }
 
-const { MockPlaybackController, mockHistory, controllerRef, databaseChange } = vi.hoisted(() => {
-	// No type declarations inside vi.hoisted (Oxc parser issue in .svelte.ts files)
-	const controllerRef: { instance: unknown; options: unknown } = {
-		instance: null,
-		options: null,
-	}
-
-	const mockHistory = {
-		begin: vi.fn(),
-		update: vi.fn(),
-		complete: vi.fn(),
-	}
-	const databaseChange: { listener: ((changes: readonly unknown[]) => void) | null } = {
-		listener: null,
-	}
-
-	class MockPlaybackController {
-		playing = $state(false)
-		duration = $state(0)
-		currentTime = $state(0)
-		loading = $state(false)
-
-		play = vi.fn((_trackId: number, _opts?: unknown) => {
-			this.playing = true
-			return Promise.resolve()
-		})
-		pause = vi.fn(() => {
-			this.playing = false
-		})
-		seek = vi.fn((time: number) => {
-			this.currentTime = time
-		})
-		setPlaybackRate = vi.fn()
-		preloadNext = vi.fn(() => Promise.resolve())
-		abortNext = vi.fn()
-		abort = vi.fn(() => {
-			this.playing = false
-			this.duration = 0
-		})
-
-		constructor(_graph: unknown, options: MockOptions) {
-			controllerRef.instance = this
-			controllerRef.options = options
+const { MockPlaybackController, mockHistory, controllerRef, databaseChange, libraryFileOverrides } =
+	vi.hoisted(() => {
+		// No type declarations inside vi.hoisted (Oxc parser issue in .svelte.ts files)
+		const controllerRef: { instance: unknown; options: unknown } = {
+			instance: null,
+			options: null,
 		}
-	}
 
-	return { MockPlaybackController, mockHistory, controllerRef, databaseChange }
-})
+		const mockHistory = {
+			begin: vi.fn(),
+			update: vi.fn(),
+			complete: vi.fn(),
+		}
+		const databaseChange: { listener: ((changes: readonly unknown[]) => void) | null } = {
+			listener: null,
+		}
+		const libraryFileOverrides = new Map<number, unknown>()
+
+		class MockPlaybackController {
+			playing = $state(false)
+			duration = $state(0)
+			currentTime = $state(0)
+			loading = $state(false)
+
+			play = vi.fn((_trackId: number, _opts?: unknown) => {
+				this.playing = true
+				return Promise.resolve()
+			})
+			pause = vi.fn(() => {
+				this.playing = false
+			})
+			seek = vi.fn((time: number) => {
+				this.currentTime = time
+			})
+			setPlaybackRate = vi.fn()
+			preloadNext = vi.fn(() => Promise.resolve())
+			abortNext = vi.fn()
+			abort = vi.fn(() => {
+				this.playing = false
+				this.duration = 0
+			})
+
+			constructor(_graph: unknown, options: MockOptions) {
+				controllerRef.instance = this
+				controllerRef.options = options
+			}
+		}
+
+		return {
+			MockPlaybackController,
+			mockHistory,
+			controllerRef,
+			databaseChange,
+			libraryFileOverrides,
+		}
+	})
 
 vi.mock('#lib/audio/playback-controller.svelte.ts', () => ({
 	PlaybackController: MockPlaybackController,
@@ -152,14 +163,19 @@ vi.mock('#lib/helpers/file-resolver.ts', () => ({
 }))
 
 vi.mock('#lib/library/get/value.ts', () => ({
-	getLibraryValue: vi.fn(() =>
-		Promise.resolve({
+	getLibraryValue: vi.fn((_store: string, trackId: number) => {
+		const override = libraryFileOverrides.get(trackId)
+		if (override !== undefined) {
+			return Promise.resolve(override)
+		}
+
+		return Promise.resolve({
 			directory: -1,
 			format: { codec: 'mp3' },
 			duration: 180,
 			file: new File([''], 'track.mp3'),
-		}),
-	),
+		})
+	}),
 }))
 
 const seedTrack = (id: number) => {
@@ -198,6 +214,7 @@ afterEach(() => {
 	queryState.retainedValue = undefined
 	queryState.retainPrevious = false
 	databaseChange.listener = null
+	libraryFileOverrides.clear()
 })
 
 describe('PlayerStore', () => {
@@ -895,6 +912,39 @@ describe('PlayerStore', () => {
 
 			expect(ctrl.abortNext).toHaveBeenCalled()
 			expect(ctrl.preloadNext).not.toHaveBeenCalled()
+		})
+	})
+
+	// CONTRACTS.md §12: PlayerStore обязан передавать track.uuid в
+	// resolveTrackFile, чтобы server трек игрался из offline записи без сети.
+	describe('offline track uuid', () => {
+		it('trackLoader передаёт track.uuid и server entity в resolveTrackFile', async () => {
+			seedTrack(7)
+			const entity = {
+				kind: 'server',
+				path: 'Artist/a.mp3',
+				name: 'a.mp3',
+				size: 10,
+				lastModified: 5,
+			}
+			libraryFileOverrides.set(7, {
+				directory: SERVER_DIRECTORY_ID,
+				format: { codec: 'mp3' },
+				duration: 180,
+				file: entity,
+				uuid: 'server:mock:a.mp3',
+			})
+
+			const result = await opts.trackLoader(7, 'load')
+
+			expect(vi.mocked(resolveTrackFile)).toHaveBeenCalledWith(
+				expect.objectContaining({
+					directoryId: SERVER_DIRECTORY_ID,
+					entity,
+					trackUuid: 'server:mock:a.mp3',
+				}),
+			)
+			expect(result).toMatchObject({ status: 'loaded', duration: 180, codec: 'mp3' })
 		})
 	})
 })

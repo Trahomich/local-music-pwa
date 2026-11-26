@@ -47,6 +47,22 @@ const requireOptionalString = (value: unknown, field: string): string | undefine
 	return requireNonEmptyString(value, field)
 }
 
+/**
+ * Playlist description: the UI sends the raw form value, so "no description"
+ * arrives as `''` (the snapshots also serialize an absent description as
+ * `''`). Both `undefined` (field omitted) and `''` are therefore accepted;
+ * any other value must be a string.
+ */
+const requireOptionalDescription = (value: unknown, field: string): string | undefined => {
+	if (value === undefined) {
+		return undefined
+	}
+	if (typeof value !== 'string') {
+		throw new UserStateActionError(`Invalid action: ${field} must be a string`)
+	}
+	return value
+}
+
 const requireTimestamp = (value: unknown, field: string): number => {
 	if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
 		throw new UserStateActionError(`Invalid action: ${field} must be a non-negative integer`)
@@ -83,7 +99,7 @@ export const parseUserStateAction = (raw: unknown): UserStateAction => {
 				action,
 				uuid,
 				name: requireNonEmptyString(record.name, 'name'),
-				description: requireOptionalString(record.description, 'description'),
+				description: requireOptionalDescription(record.description, 'description'),
 				createdAt: requireTimestamp(record.createdAt, 'createdAt'),
 				updatedAt: requireTimestamp(record.updatedAt, 'updatedAt'),
 			}
@@ -99,7 +115,7 @@ export const parseUserStateAction = (raw: unknown): UserStateAction => {
 				action,
 				uuid,
 				name: requireOptionalString(record.name, 'name'),
-				description: requireOptionalString(record.description, 'description'),
+				description: requireOptionalDescription(record.description, 'description'),
 				updatedAt: requireTimestamp(record.updatedAt, 'updatedAt'),
 			}
 		}

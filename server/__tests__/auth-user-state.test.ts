@@ -955,6 +955,67 @@ describe('auth middleware and per-user state', () => {
 		expect(snapshot.playlistEntries).toHaveLength(0)
 	})
 
+	it('accepts an empty-string description (UI form default) for create and update', async () => {
+		await createAuthServer()
+		const jar = new SessionJar()
+		await registerUser(jar, 'emptydesc.user')
+
+		// The NewPlaylistDialog form sends description: '' when the field is
+		// left empty — this must create the playlist, not INVALID_ACTION (§9).
+		const playlistUuid = randomUUID()
+		const created = await applyActions(jar, randomUUID(), {
+			action: 'playlist-create',
+			uuid: playlistUuid,
+			name: 'No Description',
+			description: '',
+			createdAt: 1000,
+			updatedAt: 1000,
+		})
+		expect(created.playlists).toEqual([
+			{
+				uuid: playlistUuid,
+				name: 'No Description',
+				description: '',
+				createdAt: 1000,
+				updatedAt: 1000,
+			},
+		])
+
+		// Clearing a description through update with '' works the same way.
+		const withDescription = await applyActions(jar, randomUUID(), {
+			action: 'playlist-update',
+			uuid: playlistUuid,
+			description: 'x',
+			updatedAt: 2000,
+		})
+		expect(withDescription.playlists[0]?.description).toBe('x')
+		const cleared = await applyActions(jar, randomUUID(), {
+			action: 'playlist-update',
+			uuid: playlistUuid,
+			description: '',
+			updatedAt: 3000,
+		})
+		expect(cleared.playlists[0]?.description).toBe('')
+
+		// Non-string descriptions are still rejected.
+		const bad = await postJson(
+			USER_STATE_ACTIONS_PATH,
+			{
+				id: randomUUID(),
+				action: {
+					action: 'playlist-create',
+					uuid: randomUUID(),
+					name: 'Bad',
+					description: 42,
+					createdAt: 1000,
+					updatedAt: 1000,
+				},
+			},
+			jar,
+		)
+		await expectError(bad, 400, 'INVALID_ACTION')
+	})
+
 	it('strictly isolates state between two accounts, even with shared uuids and request ids', async () => {
 		await createAuthServer()
 		const jarA = new SessionJar()

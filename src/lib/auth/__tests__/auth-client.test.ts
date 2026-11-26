@@ -188,7 +188,10 @@ describe('login/register/logout (§9)', () => {
 		expect(order).toEqual(['change-handler', 'reload'])
 
 		// Пароль не попадает ни в storage, ни в логи.
-		expect(globalThis.localStorage.length).toBe(0)
+		// §12: в localStorage допустим ровно один offline-маркер {id, username}.
+		expect(globalThis.localStorage.length).toBe(1)
+		expect(globalThis.localStorage.key(0)).toBe('snae-offline-user')
+		expect(globalThis.localStorage.getItem('snae-offline-user')).not.toContain(PASSWORD)
 		expect(globalThis.sessionStorage.length).toBe(0)
 		const logged = consoleSpies
 			.flatMap((spy) => spy.mock.calls)

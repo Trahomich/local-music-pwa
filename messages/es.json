@@ -1,19 +1,15 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
-
 	"about": "Acerca de",
 	"aboutHomepage": "Página principal",
 	"aboutJoinDiscord": "Únete a nuestro Discord",
 	"aboutPrivacy": "Privacidad",
 	"aboutSourceCode": "Código fuente",
-
 	"album": "Álbum",
 	"albums": "Álbumes",
-
 	"appName": "Snae Player",
 	"appNameShort": "Snae",
 	"appUpdateAvailable": "Hay una actualización de la aplicación disponible",
-
 	"artist": "Artista",
 	"artists": "Artistas",
 	"authAccount": "Account",
@@ -27,6 +23,7 @@
 	"authErrorUsernameTaken": "This username is already taken",
 	"authGateDescription": "Sign in to access your library: playlists, favorites and history are stored in your account",
 	"authLogout": "Sign out",
+	"authOfflineBanner": "Estás sin conexión. Los cambios se guardan en este dispositivo y se sincronizarán cuando vuelva la conexión.",
 	"authPassword": "Password",
 	"authPasswordHint": "8–128 characters",
 	"authSignedInAs": "Signed in as {username}",
@@ -38,8 +35,13 @@
 	"description": "Descripción",
 	"directoryIsIncludedInParent": "\"{newDir}\" es un subdirectorio de \"{existingDir}\", que ya está en tu biblioteca. No necesitas añadirlo de nuevo.",
 	"dismiss": "Descartar",
+	"downloadPlaylist": "Descargar lista de reproducción",
+	"downloadPlaylistCancel": "Cancelar descarga",
+	"downloadPlaylistCancelled": "Descarga cancelada",
+	"downloadPlaylistProgress": "Descargando {done} de {total}",
+	"downloadPlaylistResult": "Descargadas: {downloaded} · Ya sin conexión: {current} · Locales omitidas: {skippedLocal} · Fallidas: {failed}",
+	"downloadQuotaError": "No hay suficiente espacio para descargar",
 	"duration": "Duración",
-
 	"equalizerClose": "Cerrar",
 	"equalizerOpenEqualizer": "Abrir ecualizador",
 	"equalizerPresetAcoustic": "Acústico",
@@ -55,7 +57,6 @@
 	"equalizerReset": "Restablecer",
 	"equalizerStatusEnabled": "Activado",
 	"equalizerTitle": "Ecualizador",
-
 	"errorPageDoesNotExist": "Parece que esta página no existe.",
 	"errorUnexpected": "Se ha producido un error inesperado.",
 	"favorites": "Favoritos",
@@ -73,7 +74,6 @@
 	"libraryDirPromptBrowserPermission": "Se requiere permiso del navegador",
 	"libraryDirPromptExplanation": "Para reproducir música, la aplicación necesita permiso para acceder a estos directorios:",
 	"libraryDirPromptGrant": "Conceder",
-
 	"libraryEditPlaylist": "Editar lista de reproducción",
 	"libraryEditPlaylistName": "Editar nombre de la lista de reproducción",
 	"libraryEmpty": "Tu biblioteca está vacía",
@@ -81,7 +81,6 @@
 	"libraryItemRemovedFromLibrary": "Elemento eliminado de la biblioteca",
 	"libraryItemsRemovedFromLibrary": "Elementos eliminados de la biblioteca",
 	"libraryNewPlaylist": "Nueva lista de reproducción",
-
 	"libraryNoResults": "No se encontraron resultados",
 	"libraryNoResultsExplanation": "Prueba a buscar otra cosa",
 	"libraryOpenApplicationMenu": "Abrir el menú de la aplicación",
@@ -95,7 +94,6 @@
 	"libraryRemove": "Eliminar",
 	"libraryRemoveFromLibrary": "Eliminar de la biblioteca",
 	"librarySave": "Guardar",
-
 	"librarySearch": "Buscar",
 	"librarySelectSomethingToBeShown": "Selecciona algo de la lista para mostrarlo aquí",
 	"librarySplitViewDisable": "Desactivar la vista dividida",
@@ -103,7 +101,6 @@
 	"libraryStartByAdding": "Empieza añadiendo algo de música",
 	"libraryToggleSortOrder": "Cambiar el orden de clasificación",
 	"libraryTrackRemovedFromPlaylist": "Pista eliminada de la lista de reproducción",
-
 	"libraryTrackRemoveFromPlaylist": "Eliminar de la lista de reproducción",
 	"libraryTracksCount": "{count} pistas",
 	"libraryViewDetails": "Ver detalles",
@@ -113,7 +110,6 @@
 	"noItemsToDisplay": "No hay elementos para mostrar",
 	"pause": "Pausar",
 	"play": "Reproducir",
-
 	"player": "Reproductor",
 	"playerAddToQueue": "Añadir a la cola",
 	"playerAudio": "Audio",
@@ -157,16 +153,13 @@
 	"reload": "Recargar",
 	"replace": "Reemplazar",
 	"replaceDirectoryExplanation": "El directorio {newDir} que estás añadiendo es un directorio superior de {existingDirs}, que ya existe en tu biblioteca.\n No se realizarán cambios en las pistas existentes de tu biblioteca.",
-
 	"replaceDirectoryQ": "¿Reemplazar el directorio?",
 	"selectAll": "Seleccionar todo",
 	"selectedCount": "{count} seleccionados",
 	"settingPickColorFromArtwork": "Elegir automáticamente el color de la carátula de la canción en reproducción",
 	"settings": "Ajustes",
 	"settingsAbout": "Acerca de",
-
 	"settingsAddDirectory": "Añadir directorio",
-
 	"settingsAllDataLocal": "Playlists, favorites, history and settings always stay on this device",
 	"settingsAppearance": "Apariencia",
 	"settingsApplicationTheme": "Tema de la aplicación",
@@ -221,13 +214,17 @@
 	"settingsThemeLight": "Claro",
 	"settingsTracksInAppStorageTooltip": "Esto contiene las pistas almacenadas en el almacenamiento de la aplicación y/o los datos que migraste de Snae Player v1",
 	"settingsTracksInsideAppMemory": "Pistas en el almacenamiento de la aplicación",
-
 	"shuffle": "Aleatorio",
 	"successfullyRemovedTracks": "Se eliminaron {count} pistas correctamente",
 	"track": "Pista",
 	"trackAddToFavorites": "Añadir a favoritos",
-
+	"trackDownloadFailed": "No se pudo descargar la pista",
+	"trackDownloadForOffline": "Descargar para sin conexión",
+	"trackDownloading": "Descargando…",
+	"trackDownloadRemoved": "Descarga eliminada",
+	"trackDownloadUpdate": "Actualizar copia sin conexión",
 	"trackPlay": "Reproducir {name}",
+	"trackRemoveDownload": "Eliminar descarga",
 	"trackRemoveFromFavorites": "Eliminar de favoritos",
 	"tracks": "Pistas",
 	"trackViewAlbum": "Ver álbum",
@@ -237,7 +234,6 @@
 	"userStateSyncFailed": "Couldn't sync your changes. Check your connection and try again.",
 	"validationMaxLength": "Se permiten como máximo {max} caracteres",
 	"validationMinLength": "Se requieren al menos {min} caracteres",
-
 	"validationRequired": "Este campo es obligatorio",
 	"year": "Año"
 }

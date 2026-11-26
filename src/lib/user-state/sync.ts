@@ -3,6 +3,10 @@
  * (CONTRACTS.md §9): an initial fetch after sign-in, then on window focus /
  * tab visibility and every 30 seconds. Polls never overlap and stop after
  * logout, so no snapshot is applied into a local-only profile.
+ *
+ * Offline behaviour (§12): while `navigator.onLine` is false ticks are
+ * skipped silently (no failed requests, no fake success) and the `online`
+ * event resumes polling immediately.
  */
 
 import { getCurrentUserId } from '#lib/auth/client.ts'
@@ -31,6 +35,7 @@ export const stopUserStateSync = (): void => {
 
 	if (typeof window !== 'undefined') {
 		window.removeEventListener('focus', onWindowFocus)
+		window.removeEventListener('online', onOnline)
 	}
 	if (typeof document !== 'undefined') {
 		document.removeEventListener('visibilitychange', onVisibilityChange)
@@ -48,6 +53,11 @@ const onWindowFocus = (): void => {
 	void pollUserState()
 }
 
+/** Connectivity is back: poll right away instead of waiting for the next tick. */
+const onOnline = (): void => {
+	void pollUserState()
+}
+
 const pollUserState = async (): Promise<void> => {
 	if (requestInFlight) {
 		return
@@ -56,6 +66,12 @@ const pollUserState = async (): Promise<void> => {
 	if (getCurrentUserId() === null) {
 		stopUserStateSync()
 
+		return
+	}
+
+	// Without connectivity there is nothing to poll: skip the tick quietly
+	// instead of producing failed requests; `online` resumes the loop (§12).
+	if (typeof navigator !== 'undefined' && !navigator.onLine) {
 		return
 	}
 
@@ -105,5 +121,6 @@ export const startUserStateSync = (): void => {
 	void pollUserState()
 	pollingTimer = setInterval(() => void pollUserState(), USER_STATE_POLL_INTERVAL_MS)
 	window.addEventListener('focus', onWindowFocus)
+	window.addEventListener('online', onOnline)
 	document.addEventListener('visibilitychange', onVisibilityChange)
 }

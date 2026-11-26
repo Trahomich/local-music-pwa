@@ -5,6 +5,7 @@
 	import Header from '#lib/components/Header.svelte'
 	import Icon from '#lib/components/icon/Icon.svelte'
 	import MenuButton from '#lib/components/MenuButton.svelte'
+	import PlaylistDownloadControls from '#lib/components/PlaylistDownloadControls.svelte'
 	import TracksListContainer from '#lib/components/tracks/TracksListContainer.svelte'
 	import {
 		createTrackRowsSource,
@@ -230,6 +231,10 @@
 					{m.shuffle()}
 					<Icon type="shuffle" />
 				</Button>
+
+				{#if slug === 'playlists'}
+					<PlaylistDownloadControls playlistId={item.id} trackIds={rows.trackIds()} />
+				{/if}
 
 				{#if menuItems}
 					<MenuButton tooltip={m.more()} menuItems={() => menuItems} />

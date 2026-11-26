@@ -1,19 +1,15 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
-
 	"about": "概要",
 	"aboutHomepage": "ホームページ",
 	"aboutJoinDiscord": "Discord に参加",
 	"aboutPrivacy": "プライバシー",
 	"aboutSourceCode": "ソースコード",
-
 	"album": "アルバム",
 	"albums": "アルバム",
-
 	"appName": "Snae Player",
 	"appNameShort": "Snae",
 	"appUpdateAvailable": "アプリのアップデートが利用可能です",
-
 	"artist": "アーティスト",
 	"artists": "アーティスト",
 	"authAccount": "Account",
@@ -27,6 +23,7 @@
 	"authErrorUsernameTaken": "This username is already taken",
 	"authGateDescription": "Sign in to access your library: playlists, favorites and history are stored in your account",
 	"authLogout": "Sign out",
+	"authOfflineBanner": "オフラインです。変更はこのデバイスに保存され、接続が復旧すると同期されます。",
 	"authPassword": "Password",
 	"authPasswordHint": "8–128 characters",
 	"authSignedInAs": "Signed in as {username}",
@@ -38,8 +35,13 @@
 	"description": "説明",
 	"directoryIsIncludedInParent": "「{newDir}」は、すでにライブラリに含まれている「{existingDir}」のサブディレクトリです。再度追加する必要はありません。",
 	"dismiss": "閉じる",
+	"downloadPlaylist": "プレイリストをダウンロード",
+	"downloadPlaylistCancel": "ダウンロードをキャンセル",
+	"downloadPlaylistCancelled": "ダウンロードをキャンセルしました",
+	"downloadPlaylistProgress": "{total} 件中 {done} 件をダウンロード中",
+	"downloadPlaylistResult": "ダウンロード済み: {downloaded} · オフライン済み: {current} · ローカルのスキップ: {skippedLocal} · 失敗: {failed}",
+	"downloadQuotaError": "ダウンロードに必要な空き容量が不足しています",
 	"duration": "再生時間",
-
 	"equalizerClose": "閉じる",
 	"equalizerOpenEqualizer": "イコライザーを開く",
 	"equalizerPresetAcoustic": "アコースティック",
@@ -55,7 +57,6 @@
 	"equalizerReset": "リセット",
 	"equalizerStatusEnabled": "有効",
 	"equalizerTitle": "イコライザー",
-
 	"errorPageDoesNotExist": "このページは存在しないようです。",
 	"errorUnexpected": "予期しないエラーが発生しました。",
 	"favorites": "お気に入り",
@@ -73,7 +74,6 @@
 	"libraryDirPromptBrowserPermission": "ブラウザの許可が必要です",
 	"libraryDirPromptExplanation": "音楽を再生するには、これらのディレクトリへのアクセス許可が必要です：",
 	"libraryDirPromptGrant": "許可する",
-
 	"libraryEditPlaylist": "プレイリストを編集",
 	"libraryEditPlaylistName": "プレイリスト名を編集",
 	"libraryEmpty": "ライブラリは空です",
@@ -81,7 +81,6 @@
 	"libraryItemRemovedFromLibrary": "ライブラリから項目を削除しました",
 	"libraryItemsRemovedFromLibrary": "ライブラリから項目を削除しました",
 	"libraryNewPlaylist": "新しいプレイリスト",
-
 	"libraryNoResults": "結果が見つかりません",
 	"libraryNoResultsExplanation": "別のキーワードで検索してみてください",
 	"libraryOpenApplicationMenu": "アプリケーションメニューを開く",
@@ -95,7 +94,6 @@
 	"libraryRemove": "削除",
 	"libraryRemoveFromLibrary": "ライブラリから削除",
 	"librarySave": "保存",
-
 	"librarySearch": "検索",
 	"librarySelectSomethingToBeShown": "リストから項目を選択するとここに表示されます",
 	"librarySplitViewDisable": "分割表示レイアウトを無効にする",
@@ -103,7 +101,6 @@
 	"libraryStartByAdding": "まず音楽を追加しましょう",
 	"libraryToggleSortOrder": "並べ替え順を切り替える",
 	"libraryTrackRemovedFromPlaylist": "プレイリストからトラックを削除しました",
-
 	"libraryTrackRemoveFromPlaylist": "プレイリストから削除",
 	"libraryTracksCount": "{count} 曲",
 	"libraryViewDetails": "詳細を表示",
@@ -113,7 +110,6 @@
 	"noItemsToDisplay": "表示する項目がありません",
 	"pause": "一時停止",
 	"play": "再生",
-
 	"player": "プレイヤー",
 	"playerAddToQueue": "キューに追加",
 	"playerAudio": "オーディオ",
@@ -157,16 +153,13 @@
 	"reload": "再読み込み",
 	"replace": "置き換える",
 	"replaceDirectoryExplanation": "追加しようとしているディレクトリ {newDir} は、すでにライブラリに存在する {existingDirs} の親ディレクトリです。\n ライブラリ内の既存のトラックには変更はありません。",
-
 	"replaceDirectoryQ": "ディレクトリを置き換えますか？",
 	"selectAll": "すべて選択",
 	"selectedCount": "{count} 件を選択",
 	"settingPickColorFromArtwork": "再生中の曲のアートワークから自動的に色を選択する",
 	"settings": "設定",
 	"settingsAbout": "概要",
-
 	"settingsAddDirectory": "ディレクトリを追加",
-
 	"settingsAllDataLocal": "Playlists, favorites, history and settings always stay on this device",
 	"settingsAppearance": "外観",
 	"settingsApplicationTheme": "アプリケーションテーマ",
@@ -221,13 +214,17 @@
 	"settingsThemeLight": "ライト",
 	"settingsTracksInAppStorageTooltip": "これには、アプリのストレージに保存されたトラックや、Snae Player v1 から移行したデータが含まれます",
 	"settingsTracksInsideAppMemory": "アプリのストレージ内のトラック",
-
 	"shuffle": "シャッフル",
 	"successfullyRemovedTracks": "{count} 曲を削除しました",
 	"track": "トラック",
 	"trackAddToFavorites": "お気に入りに追加",
-
+	"trackDownloadFailed": "トラックをダウンロードできませんでした",
+	"trackDownloadForOffline": "オフライン用にダウンロード",
+	"trackDownloading": "ダウンロード中…",
+	"trackDownloadRemoved": "ダウンロードを削除しました",
+	"trackDownloadUpdate": "オフラインコピーを更新",
 	"trackPlay": "{name} を再生",
+	"trackRemoveDownload": "ダウンロードを削除",
 	"trackRemoveFromFavorites": "お気に入りから削除",
 	"tracks": "トラック",
 	"trackViewAlbum": "アルバムを表示",
@@ -237,7 +234,6 @@
 	"userStateSyncFailed": "Couldn't sync your changes. Check your connection and try again.",
 	"validationMaxLength": "{max} 文字以内で入力してください",
 	"validationMinLength": "{min} 文字以上入力してください",
-
 	"validationRequired": "この項目は必須です",
 	"year": "年"
 }

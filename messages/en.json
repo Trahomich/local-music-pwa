@@ -1,19 +1,15 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
-
 	"about": "About",
 	"aboutHomepage": "Homepage",
 	"aboutJoinDiscord": "Join our Discord",
 	"aboutPrivacy": "Privacy",
 	"aboutSourceCode": "Source code",
-
 	"album": "Album",
 	"albums": "Albums",
-
 	"appName": "Snae Player",
 	"appNameShort": "Snae",
 	"appUpdateAvailable": "App update is available",
-
 	"artist": "Artist",
 	"artists": "Artists",
 	"authAccount": "Account",
@@ -27,6 +23,7 @@
 	"authErrorUsernameTaken": "This username is already taken",
 	"authGateDescription": "Sign in to access your library: playlists, favorites and history are stored in your account",
 	"authLogout": "Sign out",
+	"authOfflineBanner": "You are offline. Changes are saved on this device and will sync when the connection is back.",
 	"authPassword": "Password",
 	"authPasswordHint": "8–128 characters",
 	"authSignedInAs": "Signed in as {username}",
@@ -38,8 +35,13 @@
 	"description": "Description",
 	"directoryIsIncludedInParent": "\"{newDir}\" is subdirectory of \"{existingDir}\" which is already in your Library. You do not need to add it again.",
 	"dismiss": "Dismiss",
+	"downloadPlaylist": "Download playlist",
+	"downloadPlaylistCancel": "Cancel download",
+	"downloadPlaylistCancelled": "Download cancelled",
+	"downloadPlaylistProgress": "Downloading {done} of {total}",
+	"downloadPlaylistResult": "Downloaded: {downloaded} · Already offline: {current} · Local skipped: {skippedLocal} · Failed: {failed}",
+	"downloadQuotaError": "Not enough free space to download for offline",
 	"duration": "Duration",
-
 	"equalizerClose": "Close",
 	"equalizerOpenEqualizer": "Open equalizer",
 	"equalizerPresetAcoustic": "Acoustic",
@@ -55,7 +57,6 @@
 	"equalizerReset": "Reset",
 	"equalizerStatusEnabled": "Enabled",
 	"equalizerTitle": "Equalizer",
-
 	"errorPageDoesNotExist": "Looks like this page doesn't exist.",
 	"errorUnexpected": "An unexpected error occurred.",
 	"favorites": "Favorites",
@@ -73,7 +74,6 @@
 	"libraryDirPromptBrowserPermission": "Browser permission required",
 	"libraryDirPromptExplanation": "To play music, the app needs permission to access these directories:",
 	"libraryDirPromptGrant": "Grant",
-
 	"libraryEditPlaylist": "Edit playlist",
 	"libraryEditPlaylistName": "Edit playlist name",
 	"libraryEmpty": "Your library is empty",
@@ -81,7 +81,6 @@
 	"libraryItemRemovedFromLibrary": "Item removed from library",
 	"libraryItemsRemovedFromLibrary": "Items removed from library",
 	"libraryNewPlaylist": "New playlist",
-
 	"libraryNoResults": "No results found",
 	"libraryNoResultsExplanation": "Try searching for something else",
 	"libraryOpenApplicationMenu": "Open application menu",
@@ -95,7 +94,6 @@
 	"libraryRemove": "Remove",
 	"libraryRemoveFromLibrary": "Remove from library",
 	"librarySave": "Save",
-
 	"librarySearch": "Search",
 	"librarySelectSomethingToBeShown": "Select something from the list to be shown here",
 	"librarySplitViewDisable": "Disable split view layout",
@@ -103,7 +101,6 @@
 	"libraryStartByAdding": "Start by adding some music",
 	"libraryToggleSortOrder": "Toggle sort order",
 	"libraryTrackRemovedFromPlaylist": "Track removed from playlist",
-
 	"libraryTrackRemoveFromPlaylist": "Remove from playlist",
 	"libraryTracksCount": "{count} tracks",
 	"libraryViewDetails": "View details",
@@ -113,7 +110,6 @@
 	"noItemsToDisplay": "No items to display",
 	"pause": "Pause",
 	"play": "Play",
-
 	"player": "Player",
 	"playerAddToQueue": "Add to queue",
 	"playerAudio": "Audio",
@@ -157,16 +153,13 @@
 	"reload": "Reload",
 	"replace": "Replace",
 	"replaceDirectoryExplanation": "The directory {newDir} you're adding is a parent of {existingDirs} which already exists in your Library.\n No changes will occur to existing tracks in your library.",
-
 	"replaceDirectoryQ": "Replace directory?",
 	"selectAll": "Select all",
 	"selectedCount": "Selected {count}",
 	"settingPickColorFromArtwork": "Automatically pick color from currently playing song artwork",
 	"settings": "Settings",
 	"settingsAbout": "About",
-
 	"settingsAddDirectory": "Add directory",
-
 	"settingsAllDataLocal": "Playlists, favorites, history and settings always stay on this device",
 	"settingsAppearance": "Appearance",
 	"settingsApplicationTheme": "Application theme",
@@ -221,13 +214,17 @@
 	"settingsThemeLight": "Light",
 	"settingsTracksInAppStorageTooltip": "This contains tracks stored in app storage and/or data you migrated from Snae Player v1",
 	"settingsTracksInsideAppMemory": "Tracks inside app storage",
-
 	"shuffle": "Shuffle",
 	"successfullyRemovedTracks": "Successfully removed {count} tracks",
 	"track": "Track",
 	"trackAddToFavorites": "Add to favorites",
-
+	"trackDownloadFailed": "Couldn't download the track",
+	"trackDownloadForOffline": "Download for offline",
+	"trackDownloading": "Downloading…",
+	"trackDownloadRemoved": "Download removed",
+	"trackDownloadUpdate": "Update offline copy",
 	"trackPlay": "Play {name}",
+	"trackRemoveDownload": "Remove download",
 	"trackRemoveFromFavorites": "Remove from favorites",
 	"tracks": "Tracks",
 	"trackViewAlbum": "View album",
@@ -237,7 +234,6 @@
 	"userStateSyncFailed": "Couldn't sync your changes. Check your connection and try again.",
 	"validationMaxLength": "At most {max} characters are allowed",
 	"validationMinLength": "At least {min} characters are required",
-
 	"validationRequired": "Field is required",
 	"year": "Year"
 }

@@ -1,19 +1,15 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
-
 	"about": "О приложении",
 	"aboutHomepage": "Домашняя страница",
 	"aboutJoinDiscord": "Присоединяйтесь к нашему Discord",
 	"aboutPrivacy": "Конфиденциальность",
 	"aboutSourceCode": "Исходный код",
-
 	"album": "Альбом",
 	"albums": "Альбомы",
-
 	"appName": "Snae Player",
 	"appNameShort": "Snae",
 	"appUpdateAvailable": "Доступно обновление приложения",
-
 	"artist": "Исполнитель",
 	"artists": "Исполнители",
 	"authAccount": "Аккаунт",
@@ -27,6 +23,7 @@
 	"authErrorUsernameTaken": "Это имя пользователя уже занято",
 	"authGateDescription": "Войдите, чтобы получить доступ к медиатеке: плейлисты, избранное и история хранятся в вашем аккаунте",
 	"authLogout": "Выйти",
+	"authOfflineBanner": "Нет соединения. Изменения сохраняются на этом устройстве и синхронизируются после появления сети.",
 	"authPassword": "Пароль",
 	"authPasswordHint": "8–128 символов",
 	"authSignedInAs": "Вы вошли как {username}",
@@ -38,8 +35,13 @@
 	"description": "Описание",
 	"directoryIsIncludedInParent": "\"{newDir}\" является подкаталогом \"{existingDir}\", который уже добавлен в вашу библиотеку. Добавлять его снова не нужно.",
 	"dismiss": "Закрыть",
+	"downloadPlaylist": "Скачать плейлист целиком",
+	"downloadPlaylistCancel": "Отменить скачивание",
+	"downloadPlaylistCancelled": "Скачивание отменено",
+	"downloadPlaylistProgress": "Скачивание: {done} из {total}",
+	"downloadPlaylistResult": "Скачано: {downloaded} · Уже офлайн: {current} · Локальных пропущено: {skippedLocal} · Ошибок: {failed}",
+	"downloadQuotaError": "Недостаточно свободного места для скачивания",
 	"duration": "Длительность",
-
 	"equalizerClose": "Закрыть",
 	"equalizerOpenEqualizer": "Открыть эквалайзер",
 	"equalizerPresetAcoustic": "Акустика",
@@ -55,7 +57,6 @@
 	"equalizerReset": "Сбросить",
 	"equalizerStatusEnabled": "Включён",
 	"equalizerTitle": "Эквалайзер",
-
 	"errorPageDoesNotExist": "Похоже, такой страницы не существует.",
 	"errorUnexpected": "Произошла непредвиденная ошибка.",
 	"favorites": "Избранное",
@@ -73,7 +74,6 @@
 	"libraryDirPromptBrowserPermission": "Требуется разрешение браузера",
 	"libraryDirPromptExplanation": "Чтобы воспроизводить музыку, приложению нужен доступ к этим каталогам:",
 	"libraryDirPromptGrant": "Разрешить",
-
 	"libraryEditPlaylist": "Редактировать плейлист",
 	"libraryEditPlaylistName": "Изменить название плейлиста",
 	"libraryEmpty": "Ваша библиотека пуста",
@@ -81,7 +81,6 @@
 	"libraryItemRemovedFromLibrary": "Элемент удалён из библиотеки",
 	"libraryItemsRemovedFromLibrary": "Элементы удалены из библиотеки",
 	"libraryNewPlaylist": "Новый плейлист",
-
 	"libraryNoResults": "Ничего не найдено",
 	"libraryNoResultsExplanation": "Попробуйте изменить поисковый запрос",
 	"libraryOpenApplicationMenu": "Открыть меню приложения",
@@ -95,7 +94,6 @@
 	"libraryRemove": "Удалить",
 	"libraryRemoveFromLibrary": "Удалить из библиотеки",
 	"librarySave": "Сохранить",
-
 	"librarySearch": "Поиск",
 	"librarySelectSomethingToBeShown": "Выберите что-нибудь из списка, чтобы увидеть здесь",
 	"librarySplitViewDisable": "Отключить раздельный вид",
@@ -103,7 +101,6 @@
 	"libraryStartByAdding": "Начните с добавления музыки",
 	"libraryToggleSortOrder": "Изменить порядок сортировки",
 	"libraryTrackRemovedFromPlaylist": "Трек удалён из плейлиста",
-
 	"libraryTrackRemoveFromPlaylist": "Удалить из плейлиста",
 	"libraryTracksCount": "Треков: {count}",
 	"libraryViewDetails": "Подробнее",
@@ -113,7 +110,6 @@
 	"noItemsToDisplay": "Нет элементов для отображения",
 	"pause": "Пауза",
 	"play": "Воспроизвести",
-
 	"player": "Плеер",
 	"playerAddToQueue": "Добавить в очередь",
 	"playerAudio": "Аудио",
@@ -157,16 +153,13 @@
 	"reload": "Перезагрузить",
 	"replace": "Заменить",
 	"replaceDirectoryExplanation": "Добавляемый каталог {newDir} является родительским для уже имеющихся в вашей библиотеке: {existingDirs}.\n Существующие треки в вашей библиотеке не изменятся.",
-
 	"replaceDirectoryQ": "Заменить каталог?",
 	"selectAll": "Выбрать все",
 	"selectedCount": "Выбрано: {count}",
 	"settingPickColorFromArtwork": "Автоматически выбирать цвет из обложки текущего трека",
 	"settings": "Настройки",
 	"settingsAbout": "О приложении",
-
 	"settingsAddDirectory": "Добавить каталог",
-
 	"settingsAllDataLocal": "Плейлисты, избранное, история и настройки всегда остаются на этом устройстве",
 	"settingsAppearance": "Внешний вид",
 	"settingsApplicationTheme": "Тема оформления",
@@ -221,13 +214,17 @@
 	"settingsThemeLight": "Светлая",
 	"settingsTracksInAppStorageTooltip": "Здесь отображаются треки, хранящиеся в памяти приложения, и/или данные, перенесённые из Snae Player v1",
 	"settingsTracksInsideAppMemory": "Треки в памяти приложения",
-
 	"shuffle": "Перемешать",
 	"successfullyRemovedTracks": "Успешно удалено треков: {count}",
 	"track": "Трек",
 	"trackAddToFavorites": "Добавить в избранное",
-
+	"trackDownloadFailed": "Не удалось скачать трек",
+	"trackDownloadForOffline": "Скачать для офлайн",
+	"trackDownloading": "Скачивание…",
+	"trackDownloadRemoved": "Скачанное удалено",
+	"trackDownloadUpdate": "Обновить скачанное",
 	"trackPlay": "Воспроизвести {name}",
+	"trackRemoveDownload": "Удалить скачанное",
 	"trackRemoveFromFavorites": "Удалить из избранного",
 	"tracks": "Треки",
 	"trackViewAlbum": "Открыть альбом",
@@ -237,7 +234,6 @@
 	"userStateSyncFailed": "Не удалось синхронизировать изменения. Проверьте подключение и повторите попытку.",
 	"validationMaxLength": "Допускается не более {max} символов",
 	"validationMinLength": "Требуется не менее {min} символов",
-
 	"validationRequired": "Обязательное поле",
 	"year": "Год"
 }

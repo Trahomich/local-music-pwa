@@ -11,6 +11,7 @@ import type {
 	PlaylistEntry,
 	Track,
 } from '#lib/library/types.ts'
+import type { OfflineTrackRecord } from '#lib/offline/store.ts'
 import type { DbBaseChange, DbStandardChange } from './events.ts'
 
 export interface AppDB extends DBSchema {
@@ -99,6 +100,14 @@ export interface AppDB extends DBSchema {
 			}
 		}
 	}
+	offlineTracks: {
+		key: string
+		value: OfflineTrackRecord
+		indexes: Record<string, never>
+		meta: {
+			operations: DbStandardChange<'offlineTracks'>
+		}
+	}
 }
 
 export type AppStoreNames = StoreNames<AppDB>
@@ -124,7 +133,7 @@ const createStore = <DBTypes extends DBSchema | unknown, Name extends StoreNames
 	})
 
 const openAppDatabase = (name: string) =>
-	openDB<AppDB>(name, 4, {
+	openDB<AppDB>(name, 5, {
 		async upgrade(db, oldVersion, _newVersion, tx) {
 			const { objectStoreNames } = db
 
@@ -237,6 +246,13 @@ const openAppDatabase = (name: string) =>
 				const store = createStore(db, 'playHistory')
 				createIndexes(store, ['trackId'], { unique: true })
 				createIndexes(store, ['playedAt'])
+			}
+
+			// v5: offline copies of server library tracks (§12). Records are
+			// keyed by track uuid and live in the same per-profile database,
+			// so profile isolation applies to downloads as well.
+			if (!objectStoreNames.contains('offlineTracks')) {
+				db.createObjectStore('offlineTracks', { keyPath: 'trackUuid' })
 			}
 		},
 	})

@@ -2,7 +2,7 @@
 
 **[snaeplayer.com](https://snaeplayer.com)** - Local music player in the browser.
 
-Play audio files stored on your device or served from your own server. Includes playlists, queue, favorites, equalizer, playback speed, and artwork-based theming. A self-hosted server adds personal accounts, a shared read-only music library, and playlists, favorites, and history synced across your devices.
+Play audio files stored on your device or served from your own server. Includes playlists, queue, favorites, equalizer, playback speed, offline downloads, and artwork-based theming. A self-hosted server adds personal accounts, a shared read-only music library, and playlists, favorites, and history synced across your devices.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/minht11/local-music-pwa/main/src/routes/(marketing)/assets/hero.avif" height="400" alt="Snae Player showing the music library and playback controls" />
@@ -36,6 +36,22 @@ The hosted static version has no accounts: everything stays in the browser. A se
 
 Synced changes are applied on the server right away — there is no offline editing for playlists, favorites, and history: if saving fails, the app says so instead of pretending the change was stored. Other tabs and devices pick up the changes within about half a minute.
 
+## Offline listening
+
+Tracks from the server library can be downloaded for offline playback:
+
+- **Single track** — **Download for offline** in the track menu; afterwards the same menu offers **Remove download** to free the space.
+- **Whole playlist** — the **Download playlist** button on the playlist page, favorites included, with progress and a cancel option. It downloads exactly the playlist's current entries: tracks already downloaded and unchanged are skipped, and so are tracks from local folders — they are on the device already. The button is disabled for empty or local-only playlists, and cancelling keeps nothing half-downloaded.
+- **Internal storage, not an export** — downloads live in the app's offline storage (the browser's IndexedDB) inside the current account's profile. Each account — and the anonymous profile — has its own downloads; you never see another user's. There is no ZIP and no copy in the system Downloads folder.
+- **Space is the browser's quota** — downloads share the site's storage quota. Before a batch, the app checks the reported free space and asks the browser for persistent storage (best-effort: a refusal does not block downloading); if space runs out, you get a clear error and no half-downloaded file is kept.
+- **Stale copies** — if a track changes on the server, your download is not silently deleted; it is marked as needing an update. To update it, choose **Download for offline** again while online; until you do, the offline copy remains the last version you saved, and it still plays.
+
+The first visit, the library scan, and every download need the network. From the second visit on, the app shell itself opens offline: `/` still redirects to the library, and downloaded tracks play without a connection. While offline you can also remove downloads — but changes to playlists, favorites, and history stay online-only, with no offline editing: they simply sync again when the network returns.
+
+After signing in, the app remembers only your user id and username — never the password or session token — so that your profile can open offline. Signing out, or the server rejecting the session once you are back online, clears that marker.
+
+Local folder tracks are already offline and are never duplicated into the offline storage. Offline mode does not sync local files to the server and does not export tracks out of the app.
+
 ## Privacy
 
 With the hosted version — and any purely static deployment using local folders only — your music files and library data never leave your device. The app does not collect or transmit them.
@@ -46,7 +62,7 @@ On a self-hosted server, everything likewise stays on *your own* infrastructure 
 - Playlists, favorites, and history are stored on the server per account; queue and settings stay in the browser (IndexedDB / local storage), in a separate browser profile per account.
 - Passwords are stored only as salted hashes, sessions only as token hashes — never in plain text.
 
-Clearing the site's data deletes the local index and settings on that device — never the audio files, neither on your device nor on the server, and never your server-side account data.
+Clearing the site's data deletes the local index, settings, and offline downloads on that device — never the audio files, neither on your device nor on the server, and never your server-side account data.
 
 Page views are counted using [GoatCounter](https://goatcounter.com/), a minimal privacy-preserving analytics tool. It is configured at build time and can be disabled — see [Configuration](#configuration).
 

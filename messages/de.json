@@ -1,19 +1,15 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
-
 	"about": "Über",
 	"aboutHomepage": "Webseite",
 	"aboutJoinDiscord": "Discord",
 	"aboutPrivacy": "Privatsphäre",
 	"aboutSourceCode": "Quellcode",
-
 	"album": "Album",
 	"albums": "Alben",
-
 	"appName": "Snae Player",
 	"appNameShort": "Snae",
 	"appUpdateAvailable": "Neue Version verfügbar",
-
 	"artist": "Künstler",
 	"artists": "Künstler",
 	"authAccount": "Account",
@@ -27,6 +23,7 @@
 	"authErrorUsernameTaken": "This username is already taken",
 	"authGateDescription": "Sign in to access your library: playlists, favorites and history are stored in your account",
 	"authLogout": "Sign out",
+	"authOfflineBanner": "Du bist offline. Änderungen werden auf diesem Gerät gespeichert und synchronisiert, sobald du wieder online bist.",
 	"authPassword": "Password",
 	"authPasswordHint": "8–128 characters",
 	"authSignedInAs": "Signed in as {username}",
@@ -38,6 +35,12 @@
 	"description": "Beschreibung",
 	"directoryIsIncludedInParent": "\"{newDir}\" ist ein Unterverzeichnis von \"{existingDir}\" das bereits in Ihrer Bibliothek vorhanden ist. Eine erneute Hinzufügung ist nicht erforderlich.",
 	"dismiss": "Schließen",
+	"downloadPlaylist": "Playlist herunterladen",
+	"downloadPlaylistCancel": "Download abbrechen",
+	"downloadPlaylistCancelled": "Download abgebrochen",
+	"downloadPlaylistProgress": "{done} von {total} werden heruntergeladen",
+	"downloadPlaylistResult": "Heruntergeladen: {downloaded} · Bereits offline: {current} · Lokale übersprungen: {skippedLocal} · Fehlgeschlagen: {failed}",
+	"downloadQuotaError": "Nicht genügend Speicherplatz zum Herunterladen",
 	"duration": "Dauer",
 	"equalizerClose": "Schließen",
 	"equalizerOpenEqualizer": "Equalizer öffnen",
@@ -54,7 +57,6 @@
 	"equalizerReset": "Zurücksetzen",
 	"equalizerStatusEnabled": "Aktiviert",
 	"equalizerTitle": "Equalizer",
-
 	"errorPageDoesNotExist": "Diese Seite scheint nicht zu existieren.",
 	"errorUnexpected": "Es ist ein unerwarteter Fehler aufgetreten.",
 	"favorites": "Favoriten",
@@ -72,7 +74,6 @@
 	"libraryDirPromptBrowserPermission": "Browserberechtigung erforderlich",
 	"libraryDirPromptExplanation": "Zum Abspielen von Musik benötigt die App Zugriff auf folgende Verzeichnisse:",
 	"libraryDirPromptGrant": "Zulassen",
-
 	"libraryEditPlaylist": "Wiedergabeliste bearbeiten",
 	"libraryEditPlaylistName": "Wiedergabelistenname bearbeiten",
 	"libraryEmpty": "Ihre Bibliothek ist leer",
@@ -80,7 +81,6 @@
 	"libraryItemRemovedFromLibrary": "Element aus der Bibliothek entfernt",
 	"libraryItemsRemovedFromLibrary": "Elemente aus der Bibliothek entfernt",
 	"libraryNewPlaylist": "Neue Wiedergabeliste",
-
 	"libraryNoResults": "Keine Ergebnisse gefunden",
 	"libraryNoResultsExplanation": "Versuchen Sie es mit einer anderen Suche",
 	"libraryOpenApplicationMenu": "App-Menü öffnen",
@@ -94,7 +94,6 @@
 	"libraryRemove": "Entfernen",
 	"libraryRemoveFromLibrary": "Aus der Bibliothek entfernen",
 	"librarySave": "Speichern",
-
 	"librarySearch": "Suchen",
 	"librarySelectSomethingToBeShown": "Bitte wählen Sie einen Listeneintrag aus, der hier angezeigt werden soll",
 	"librarySplitViewDisable": "Geteilte Ansicht deaktivieren",
@@ -102,7 +101,6 @@
 	"libraryStartByAdding": "Fügen Sie jetzt Musik hinzu",
 	"libraryToggleSortOrder": "Sortierreihenfolge ändern",
 	"libraryTrackRemovedFromPlaylist": "Titel aus der Wiedergabeliste entfernt",
-
 	"libraryTrackRemoveFromPlaylist": "Aus Wiedergabeliste entfernen",
 	"libraryTracksCount": "{count} Titel",
 	"libraryViewDetails": "Details anzeigen",
@@ -112,7 +110,6 @@
 	"noItemsToDisplay": "Keine Elemente vorhanden",
 	"pause": "Pause",
 	"play": "Abspielen",
-
 	"player": "Player",
 	"playerAddToQueue": "Zur Warteschlange hinzufügen",
 	"playerAudio": "Audio",
@@ -156,16 +153,13 @@
 	"reload": "Aktualisieren",
 	"replace": "Ersetzen",
 	"replaceDirectoryExplanation": "{newDir} ist ein übergeordnetes Verzeichnis von {existingDirs} und bereits in Ihrer Bibliothek enthalten.\n Bestehende Titel in Ihrer Bibliothek bleiben unverändert.",
-
 	"replaceDirectoryQ": "Ordner ersetzen?",
 	"selectAll": "Alle auswählen",
 	"selectedCount": "{count} ausgewählt",
 	"settingPickColorFromArtwork": "Farbanpassung basierend auf dem aktuellen Titel",
 	"settings": "Einstellungen",
 	"settingsAbout": "Über",
-
 	"settingsAddDirectory": "Ordner hinzufügen",
-
 	"settingsAllDataLocal": "Playlists, favorites, history and settings always stay on this device",
 	"settingsAppearance": "Oberflächendesign",
 	"settingsApplicationTheme": "Erscheinungsbild",
@@ -224,8 +218,13 @@
 	"successfullyRemovedTracks": "{count} Titel erfolgreich entfernt",
 	"track": "Titel",
 	"trackAddToFavorites": "Zu Favoriten hinzufügen",
-
+	"trackDownloadFailed": "Titel konnte nicht heruntergeladen werden",
+	"trackDownloadForOffline": "Für offline herunterladen",
+	"trackDownloading": "Wird heruntergeladen…",
+	"trackDownloadRemoved": "Download entfernt",
+	"trackDownloadUpdate": "Offline-Kopie aktualisieren",
 	"trackPlay": "{name} abspielen",
+	"trackRemoveDownload": "Download entfernen",
 	"trackRemoveFromFavorites": "Aus den Favoriten entfernen",
 	"tracks": "Titel",
 	"trackViewAlbum": "Album anzeigen",
@@ -235,7 +234,6 @@
 	"userStateSyncFailed": "Couldn't sync your changes. Check your connection and try again.",
 	"validationMaxLength": "Es sind maximal {max} Zeichen erlaubt",
 	"validationMinLength": "Es sind mindestens {min} Zeichen erforderlich",
-
 	"validationRequired": "Eingabe erforderlich",
 	"year": "Jahr"
 }

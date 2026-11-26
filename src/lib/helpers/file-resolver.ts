@@ -2,6 +2,7 @@ import { getDatabase } from '#lib/db/database.ts'
 import { type FileEntity, isServerFileEntity } from '#lib/helpers/file-system.ts'
 import { isAndroid, isChromiumBased } from '#lib/helpers/utils/ua.ts'
 import type { ServerFileEntity } from '#lib/library/types.ts'
+import { getOfflineTrack, type OfflineTrackRecord } from '#lib/offline/store.ts'
 import { getAudioMimeType } from '#lib/server-library/api.ts'
 import {
 	fetchServerLibraryFileBlob,
@@ -75,9 +76,40 @@ interface ResolveTrackFileOptions {
 	directoryId: number
 	entity: FileEntity
 	askPermission: boolean
+	/** Stable track uuid; enables the offline copy for server tracks (§12). */
+	trackUuid?: string
 }
 
-const resolveServerFile = async (entity: ServerFileEntity): Promise<ResolveResult> => {
+const fileFromOfflineRecord = (record: OfflineTrackRecord, name: string): File =>
+	new File([record.blob], name, {
+		type: getAudioMimeType(name) ?? record.blob.type,
+		lastModified: record.lastModified,
+	})
+
+const resolveServerFile = async (
+	entity: ServerFileEntity,
+	trackUuid?: string,
+): Promise<ResolveResult> => {
+	let offlineRecord: OfflineTrackRecord | undefined
+	if (trackUuid !== undefined) {
+		try {
+			offlineRecord = await getOfflineTrack(trackUuid)
+		} catch (error) {
+			// A broken offline store must not break online playback.
+			console.error('[resolveTrackFile] offline store read failed:', error)
+		}
+	}
+
+	const isCurrent =
+		offlineRecord !== undefined &&
+		offlineRecord.size === entity.size &&
+		offlineRecord.lastModified === entity.lastModified
+
+	if (offlineRecord !== undefined && isCurrent) {
+		// Fresh offline copy: play it without touching the network (§12).
+		return { status: 'loaded', file: fileFromOfflineRecord(offlineRecord, entity.name) }
+	}
+
 	try {
 		const blob = await fetchServerLibraryFileBlob(entity.path)
 		const file = new File([blob], entity.name, {
@@ -85,10 +117,20 @@ const resolveServerFile = async (entity: ServerFileEntity): Promise<ResolveResul
 			lastModified: entity.lastModified,
 		})
 
+		// The fresh copy is played but not persisted: refreshing the offline
+		// record is an explicit user action (downloads, §12).
 		return { status: 'loaded', file }
 	} catch (error) {
 		if (error instanceof ServerLibraryRequestError && error.code === 'FILE_NOT_FOUND') {
 			return { status: 'not-found' }
+		}
+
+		if (offlineRecord !== undefined) {
+			// Stale copy is the last available version when the server
+			// cannot be reached (§12). A present-but-gone file (404) is
+			// not treated as a network failure.
+			console.warn('[resolveTrackFile] server unavailable, using stale offline copy', error)
+			return { status: 'loaded', file: fileFromOfflineRecord(offlineRecord, entity.name) }
 		}
 
 		console.error('[resolveTrackFile] server file', error)
@@ -104,10 +146,10 @@ const resolveServerFile = async (entity: ServerFileEntity): Promise<ResolveResul
 export const resolveTrackFile = async (
 	options: ResolveTrackFileOptions,
 ): Promise<ResolveResult> => {
-	const { directoryId, entity, askPermission } = options
+	const { directoryId, entity, askPermission, trackUuid } = options
 
 	if (isServerFileEntity(entity)) {
-		return resolveServerFile(entity)
+		return resolveServerFile(entity, trackUuid)
 	}
 
 	try {

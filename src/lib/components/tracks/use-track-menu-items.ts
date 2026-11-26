@@ -1,8 +1,17 @@
 import { goto } from '$app/navigation'
 import { resolve } from '$app/paths'
 import { getDatabase } from '#lib/db/database.ts'
+import { isServerFileEntity } from '#lib/helpers/file-system.ts'
 import type { TrackData } from '#lib/library/get/value.ts'
 import { toggleFavoriteTrack } from '#lib/library/playlists-actions.ts'
+import { getTrackDownloadStatus } from '#lib/offline/download-status.svelte.ts'
+import {
+	cancelDownloads,
+	downloadTrack,
+	isAbortError,
+	OfflineStorageQuotaError,
+} from '#lib/offline/downloads.ts'
+import { removeOfflineTrack } from '#lib/offline/store.ts'
 import type { MenuActionItem, MenuItem } from '../menu/types.ts'
 import type { SelectionSnapshot } from './selection.ts'
 
@@ -24,6 +33,8 @@ const DEFAULT_VISIBILITY = {
 	addToFavorites: true,
 	viewAlbum: true,
 	viewArtist: true,
+	// Server tracks only: local files are already offline.
+	download: true,
 	// Multi-select only: the single-row menu folds both directions into `addToFavorites`.
 	removeFromFavorites: false,
 } as const
@@ -62,6 +73,84 @@ const viewRelated = async (store: 'albums' | 'artists', name: string) => {
 		await goto(path)
 	} catch (error) {
 		snackbar.unexpectedError(error)
+	}
+}
+
+const startTrackDownload = (track: TrackData) => {
+	void downloadTrack(track).catch((error: unknown) => {
+		if (isAbortError(error)) {
+			// Cancelled by the user: nothing to report.
+			return
+		}
+
+		if (error instanceof OfflineStorageQuotaError) {
+			snackbar({ id: 'track-download-quota', message: m.downloadQuotaError() })
+			return
+		}
+
+		snackbar({ id: 'track-download-failed', message: m.trackDownloadFailed() })
+	})
+}
+
+const removeTrackDownload = (track: TrackData) => {
+	removeOfflineTrack(track.uuid)
+		.then(() => {
+			snackbar({ id: 'track-download-removed', message: m.trackDownloadRemoved() })
+		})
+		.catch((error: unknown) => {
+			snackbar.unexpectedError(error)
+		})
+}
+
+/**
+ * Offline download entry for server tracks (CONTRACTS.md §12). The label
+ * follows the reactive download status; local tracks are already offline and
+ * get no item at all.
+ */
+const getDownloadMenuItem = (track: TrackData): UnfilteredPredefinedMenuItem => {
+	if (!isServerFileEntity(track.file)) {
+		return undefined
+	}
+
+	const status = getTrackDownloadStatus(track)
+
+	if (status === 'downloading') {
+		return {
+			key: 'download',
+			label: m.trackDownloading(),
+			action: () => {
+				cancelDownloads()
+			},
+		}
+	}
+
+	if (status === 'downloaded') {
+		return {
+			key: 'download',
+			label: m.trackRemoveDownload(),
+			action: () => {
+				removeTrackDownload(track)
+			},
+		}
+	}
+
+	if (status === 'stale') {
+		return {
+			key: 'download',
+			label: m.trackDownloadUpdate(),
+			action: () => {
+				startTrackDownload(track)
+			},
+		}
+	}
+
+	// No copy yet, or the last attempt failed: offer (re)downloading.
+	return {
+		key: 'download',
+		label: m.trackDownloadForOffline(),
+		action: () => {
+			startTrackDownload(track)
+		},
 	}
 }
 
@@ -136,6 +225,7 @@ export const useTrackMenuItems = (
 					void toggleFavoriteTrack(track.favorite, track.id)
 				},
 			},
+			getDownloadMenuItem(track),
 			albumName
 				? {
 						key: 'viewAlbum',

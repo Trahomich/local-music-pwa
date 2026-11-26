@@ -17,3 +17,6 @@ yggdrasil
 # и прочие БД/секреты никогда не коммитим
 .data/
 *.sqlite*
+
+# TypeScript build info (generated)
+tsconfig.tsbuildinfo

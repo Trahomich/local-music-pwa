@@ -14,6 +14,7 @@
 	import SnackbarRenderer from '#lib/components/snackbar/SnackbarRenderer.svelte'
 	import { isElementTextInput } from '#lib/helpers/input.ts'
 	import { isMobile } from '#lib/helpers/utils/ua.ts'
+	import { startServerLibraryStartupSync } from '#lib/server-library/startup.ts'
 	import { DialogsStore } from '#lib/stores/dialogs/store.svelte.ts'
 	import { setDialogsStoreContext } from '#lib/stores/dialogs/use-store.ts'
 	import { PlayerStore } from '#lib/stores/player/player.svelte.ts'
@@ -94,6 +95,11 @@
 		// after entering the app and keep pulling on focus + every 30 s.
 		// No-op in the local-only/static mode (getCurrentUserId() === null).
 		startUserStateSync()
+
+		// §13: sync the server library once per page lifetime after auth
+		// bootstrap, without blocking loaders/render. No-op in the
+		// local-only/static mode and while offline (deferred to `online`).
+		startServerLibraryStartupSync()
 	}
 </script>
 

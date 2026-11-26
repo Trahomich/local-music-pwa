@@ -265,3 +265,15 @@ SQLite index: keyed by relative POSIX `path`, хранит descriptor, `size`, `
 
 - Независимые unit/integration: store writes/events/current/stale/quota/abort; resolver без сети; mixed playlist batch (current/local/failed/cancel), favorites; RU/EN; offline auth marker A/B/logout/online 401; service worker fallback. Не заменять тесты реальным воспроизведением, если Chromium доступен.
 - Финальная приёмка в Chromium: login A → server scan → скачать один track и целый playlist → выключить сеть через browser context → reload `/library/tracks` → треки/плейлист/artwork видны и аудио реально начинает воспроизводиться (currentTime растёт или audio events подтверждают playback). Удалить download и проверить, что offline playback после этого не выдаётся за возможный. Аккаунт B не видит downloads A. Зафиксировать ограничения браузера честно.
+
+## 13. Автоматическая синхронизация серверной библиотеки при запуске
+
+Пользователь не должен вручную добавлять серверную библиотеку при каждом запуске.
+
+- В `(app)/+layout.svelte` один раз за page lifetime запускается `startServerLibraryStartupSync()` после готового auth/bootstrap и без блокировки дочерних loaders/initial render. Static hosting без backend и offline browser не запускают network scan.
+- Сначала `GET status`. Если `enabled !== true`, ничего не делать. При 401/503/network error сохранить cached tracks и показать локализованную ошибку без empty-library/fake success и без бесконечного retry loop. Один запуск допускает один новый retry по событию `online`, если он был отложен из-за offline.
+- Если `SERVER_DIRECTORY_ID` отсутствует в directories — вызвать существующий `importServerDirectory()`; если уже есть — `rescanServerDirectory()` (server incremental rescan + catalog). Это автоматически создаёт источник для каждого пользователя отдельно в его IndexedDB. Для offline profile скачанные tracks/artwork видны сразу, сетевой rescan откладывается до `online`.
+- Работа идёт в фоне: пользователь сразу видит cached server tracks (если есть) и обычный scan/server progress UI. Не делать `await` перед отрисовкой приложения и не перенаправлять на Settings. Кнопка ручного add/rescan остаётся; текущий `lockDatabase` сериализует startup и ручные операции. Модульный guard исключает повторный startup в том же JS-сессии, HMR-safe.
+- При выборе другого аккаунта/new page lifetime поведение повторяется: каждый аккаунт получает свой локальный catalog после входа. Данные другого аккаунта не показываются. Logout удаляет только локальный источник из текущего профиля при явном действии пользователя; startup ничего не удаляет из MUSIC_DIR или user-state.
+
+Проверка: чистый профиль после login открывает `/library/tracks` и получает server tracks БЕЗ клика Settings→Add; при следующем launch новый файл на сервере появляется в фоне. Offline reload показывает прежние tracks без network и выполняет rescan только после `online`. 401/503 не стирают cached library и не приводят к бесконечному циклу. A/B имеют независимые catalogs и startup запускается один раз за профиль.

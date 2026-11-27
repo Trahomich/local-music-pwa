@@ -258,6 +258,32 @@ describe('PlaybackController', () => {
 			expect(mockCreateAudioBufferEngine).toHaveBeenCalledTimes(2)
 		})
 
+		it('starts the preloaded next track synchronously within the ended transition (#49)', async () => {
+			using s = setup({ gaplessEnabled: false })
+			const engine1 = makeHTMLEngine()
+			const engine2 = makeHTMLEngine()
+			mockCreateHTMLAudioEngine.mockResolvedValueOnce(engine1).mockResolvedValueOnce(engine2)
+			s.seedTrack(1)
+			await s.controller.play(1)
+			s.seedTrack(2)
+			await s.controller.preloadNext(2)
+			expect(engine2.play).not.toHaveBeenCalled()
+
+			// What PlayerStore.#handleTrackEnded does: advance + play(gapless).
+			// The promote branch has no awaits: engine.play() must be reached
+			// within the same task — a hidden page may refuse a play() that
+			// comes after an async load gap (screen-off track transition).
+			const playPromise = s.controller.play(2, { gapless: true, fromBeginning: true })
+			expect(engine2.play).toHaveBeenCalledOnce()
+			await playPromise
+
+			expect(s.controller.playing).toBe(true)
+			expect(s.controller.duration).toBe(engine2.duration)
+			// No reload at the transition: track 2 was loaded once (by the preload)
+			expect(s.trackLoader).toHaveBeenCalledTimes(2)
+			expect(mockCreateHTMLAudioEngine).toHaveBeenCalledTimes(2)
+		})
+
 		it('passes current playbackRate to newly loaded engine', async () => {
 			using s = setup()
 			s.controller.setPlaybackRate(1.5, false)
@@ -486,30 +512,99 @@ describe('PlaybackController', () => {
 	})
 
 	describe('preloadNext()', () => {
-		it('marks gapless unavailable when current engine is HTML (not buffer engine)', async () => {
+		it('preloads a paused HTML engine when current engine is HTML (no gapless schedule possible)', async () => {
 			using s = setup({ gaplessEnabled: true })
 			// mp3 → supportsBufferEngine returns false → HTML engine is used
+			const engine1 = makeHTMLEngine()
+			const engine2 = makeHTMLEngine()
+			mockCreateHTMLAudioEngine.mockResolvedValueOnce(engine1).mockResolvedValueOnce(engine2)
 			s.seedTrack(1, 'mp3')
 			await s.controller.play(1)
 
+			s.seedTrack(2, 'mp3')
 			await s.controller.preloadNext(2)
 
-			// A second buffer engine load should not have been attempted
+			// Warm preload: HTML engine, loaded but not started
 			expect(mockCreateAudioBufferEngine).not.toHaveBeenCalled()
+			expect(mockCreateHTMLAudioEngine).toHaveBeenCalledTimes(2)
+			expect(engine2.play).not.toHaveBeenCalled()
+
+			// At track end the preloaded engine is promoted without a fresh load
+			await s.controller.play(2, { gapless: true })
+			expect(engine2.play).toHaveBeenCalledOnce()
+			expect(mockCreateHTMLAudioEngine).toHaveBeenCalledTimes(2)
+			expect(s.trackLoader).toHaveBeenCalledTimes(2)
 		})
 
-		it('marks gapless unavailable when gapless is disabled even with buffer engine', async () => {
+		it('preloads a paused HTML engine when gapless is disabled even with a supported codec', async () => {
 			using s = setup({ gaplessEnabled: false })
 			mockSupportsBufferEngine.mockReturnValue(true)
+
+			const engine1 = makeHTMLEngine()
+			const engine2 = makeHTMLEngine()
+			mockCreateHTMLAudioEngine.mockResolvedValueOnce(engine1).mockResolvedValueOnce(engine2)
 
 			// With gapless disabled, play() always uses the HTML engine
 			s.seedTrack(1, 'flac')
 			await s.controller.play(1)
 
+			s.seedTrack(2, 'flac')
 			await s.controller.preloadNext(2)
 
-			// Neither play nor preload should reach the buffer engine path
+			// The buffer engine must stay untouched: without scheduleAt it would
+			// suspend the graph and silence the playing track
 			expect(mockCreateAudioBufferEngine).not.toHaveBeenCalled()
+			expect(mockCreateHTMLAudioEngine).toHaveBeenCalledTimes(2)
+			expect(engine2.play).not.toHaveBeenCalled()
+
+			await s.controller.play(2, { gapless: true })
+			expect(engine2.play).toHaveBeenCalledOnce()
+		})
+
+		it('forces HTML preload when gapless is enabled but the current engine is HTML', async () => {
+			using s = setup({ gaplessEnabled: true })
+			// Current track plays via HTML (codec unsupported at play time)
+			mockSupportsBufferEngine.mockReturnValue(false)
+			const engine1 = makeHTMLEngine()
+			const engine2 = makeHTMLEngine()
+			mockCreateHTMLAudioEngine.mockResolvedValueOnce(engine1).mockResolvedValueOnce(engine2)
+			s.seedTrack(1, 'mp3')
+			await s.controller.play(1)
+
+			// The next track's codec IS buffer-capable, but there is no buffer
+			// endTime to schedule against → still HTML, never the buffer engine
+			mockSupportsBufferEngine.mockReturnValue(true)
+			s.seedTrack(2, 'flac')
+			await s.controller.preloadNext(2)
+
+			expect(mockCreateAudioBufferEngine).not.toHaveBeenCalled()
+			expect(mockCreateHTMLAudioEngine).toHaveBeenCalledTimes(2)
+			expect(mockCreateHTMLAudioEngine).toHaveBeenLastCalledWith(
+				expect.objectContaining({ scheduleAt: undefined }),
+			)
+		})
+
+		it('falls back to a fresh load at track end when the warm preload failed', async () => {
+			using s = setup({ gaplessEnabled: false })
+			const engine1 = makeHTMLEngine()
+			const engine2 = makeHTMLEngine()
+			mockCreateHTMLAudioEngine.mockResolvedValueOnce(engine1).mockResolvedValueOnce(engine2)
+			s.trackLoader
+				.mockResolvedValueOnce(makeLoadedResult(1))
+				.mockResolvedValueOnce({ status: 'not-found' }) // preload fails silently
+				.mockResolvedValueOnce(makeLoadedResult(2))
+
+			await s.controller.play(1)
+			await s.controller.preloadNext(2)
+
+			// Preload failure must not surface to the user
+			expect(s.onError).not.toHaveBeenCalled()
+
+			await s.controller.play(2, { gapless: true, fromBeginning: true })
+
+			expect(engine2.play).toHaveBeenCalledOnce()
+			expect(s.onError).not.toHaveBeenCalled()
+			expect(s.controller.playing).toBe(true)
 		})
 
 		it('does not preload the currently-playing track as next', async () => {

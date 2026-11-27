@@ -627,8 +627,6 @@ describe('polling', () => {
 		await vi.waitFor(() => {
 			expect(requests.filter((r) => r.method === 'GET')).toHaveLength(1)
 		})
-		// Let the initial poll finish so requestInFlight no longer short-circuits ticks.
-		await new Promise((resolve) => setTimeout(resolve, 20))
 
 		const focusListener = addSpy.mock.calls.find((c) => String(c[0]) === 'focus')?.[1]
 		const visibilityListener = documentAddSpy.mock.calls.find(
@@ -637,16 +635,23 @@ describe('polling', () => {
 		expect(focusListener).toBeDefined()
 		expect(visibilityListener).toBeDefined()
 
-		// Logout: the next poll tick stops sync and must detach both listeners.
+		// Logout: a poll tick stops sync and must detach both listeners. The
+		// initial tick may still be in flight and would short-circuit the
+		// focus tick, so re-dispatch focus on every waitFor retry instead of
+		// sleeping a fixed delay: as soon as the in-flight tick finishes, the
+		// next dispatch observes the logout and stops sync deterministically.
 		mocks.userId = null
-		window.dispatchEvent(new Event('focus'))
-		await vi.waitFor(() => {
-			expect(
-				removeSpy.mock.calls.some(
-					(c) => String(c[0]) === 'focus' && c[1] === focusListener,
-				),
-			).toBe(true)
-		})
+		await vi.waitFor(
+			() => {
+				window.dispatchEvent(new Event('focus'))
+				expect(
+					removeSpy.mock.calls.some(
+						(c) => String(c[0]) === 'focus' && c[1] === focusListener,
+					),
+				).toBe(true)
+			},
+			{ timeout: 4000 },
+		)
 		expect(
 			documentRemoveSpy.mock.calls.some(
 				(c) => c[0] === 'visibilitychange' && c[1] === visibilityListener,

@@ -41,7 +41,7 @@ interface EngineStateReady {
 interface EngineStateFailed {
 	status: 'failed'
 	trackId: number
-	reason: FileLoadFailReason | 'gapless-unavailable'
+	reason: FileLoadFailReason | 'preload-failed'
 }
 
 type EngineState = EngineStateIdle | EngineStateLoading | EngineStateReady | EngineStateFailed
@@ -81,6 +81,12 @@ interface TryLoadEngineOptions {
 	// Using getter so that we can get latest value, only when we actually start loading the audio
 	scheduleAt?: () => number
 	mustBeGapless?: boolean
+	/**
+	 * Forbid the buffer engine for this load. A buffer engine created without
+	 * `scheduleAt` suspends the shared graph while decoding, which would
+	 * silence the track that is currently playing during a preload.
+	 */
+	mustBeHtml?: boolean
 	reason: TrackLoadReason
 }
 
@@ -191,9 +197,21 @@ export class PlaybackController {
 	}
 
 	/**
-	 * Preload track for gapless pre-buffering. Idempotent: same track already
-	 * in a non-idle state → no-op. Marks unavailable immediately if gapless is not
-	 * possible, avoiding an unnecessary file load.
+	 * Preload the next track for the end-of-track handoff. Idempotent: same
+	 * track already in a non-idle state → no-op.
+	 *
+	 * Two modes:
+	 * - Gapless: when the current engine is a buffer engine and gapless is
+	 *   enabled, the next buffer engine is scheduled sample-accurately at the
+	 *   current engine's end time.
+	 * - Warm HTML preload: in every other case a paused, fully loaded
+	 *   HTMLAudioEngine is prepared. Real mobile devices routinely refuse a
+	 *   fresh load + play() started from a hidden page after `ended` (the
+	 *   multi-second load gap releases the audio focus / media session), so
+	 *   the next engine must already exist when the current track ends
+	 *   (CONTRACTS.md §14: both engine paths must behave the same). The
+	 *   buffer engine is forbidden here: without `scheduleAt` it would
+	 *   suspend the graph and silence the currently playing track.
 	 */
 	async preloadNext(trackId: number): Promise<void> {
 		const next = this.#next
@@ -212,13 +230,10 @@ export class PlaybackController {
 
 		const currentEngine = current.status === 'ready' ? current.engine : null
 
-		const canTryGapless =
+		const gaplessSource =
 			currentEngine instanceof AudioBufferEngine && this.#options.isGaplessEnabled()
-
-		if (!canTryGapless) {
-			this.#next = failed(trackId, 'gapless-unavailable')
-			return
-		}
+				? currentEngine
+				: null
 
 		const transition = createStateTransition(trackId)
 		this.#next = transition.loading()
@@ -226,8 +241,9 @@ export class PlaybackController {
 		const result = await this.#tryLoadingEngine(trackId, {
 			reason: 'preload',
 			signal: this.#next.controller.signal,
-			mustBeGapless: true,
-			scheduleAt: () => currentEngine.endTime,
+			mustBeGapless: gaplessSource !== null,
+			mustBeHtml: gaplessSource === null,
+			scheduleAt: gaplessSource === null ? undefined : () => gaplessSource.endTime,
 		})
 
 		if (result.status === 'aborted') {
@@ -235,7 +251,8 @@ export class PlaybackController {
 		}
 
 		if (result.status === 'failed') {
-			this.#next = transition.failed('gapless-unavailable')
+			// Preload failures stay silent: play() falls back to a fresh load.
+			this.#next = transition.failed('preload-failed')
 			return
 		}
 
@@ -284,7 +301,7 @@ export class PlaybackController {
 		trackId: number,
 		options: TryLoadEngineOptions,
 	): Promise<EngineLoadResult> {
-		const { scheduleAt, mustBeGapless, signal } = options
+		const { scheduleAt, mustBeGapless, mustBeHtml, signal } = options
 
 		try {
 			const result = await this.#options.trackLoader(trackId, options.reason)
@@ -294,7 +311,7 @@ export class PlaybackController {
 				return { status: 'failed', reason: result.status }
 			}
 
-			const canUseBufferEngine = await this.#canUseBufferEngine(result.codec)
+			const canUseBufferEngine = !mustBeHtml && (await this.#canUseBufferEngine(result.codec))
 			signal.throwIfAborted()
 
 			const engineOptions: AudioEngineOptions = {

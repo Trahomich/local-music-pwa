@@ -121,6 +121,19 @@ export class PlaybackController {
 	constructor(graph: AudioGraph, options: AudioPlayerOptions) {
 		this.#graph = graph
 		this.#options = options
+		graph.onInterruptionFailed = () => this.#handleInterruptionFailed()
+	}
+
+	/**
+	 * The context was suspended externally and the browser refused to resume
+	 * it without a fresh user gesture (CONTRACTS.md §14): stop honestly
+	 * instead of keeping a false `playing=true`. No-op when already paused.
+	 */
+	#handleInterruptionFailed(): void {
+		if (this.playing) {
+			this.playing = false
+			this.#options.onError('error')
+		}
 	}
 
 	/**
@@ -135,7 +148,7 @@ export class PlaybackController {
 				this.seek(0)
 			}
 
-			void current.engine.play()
+			this.#playEngine(current.engine)
 
 			return
 		}
@@ -334,8 +347,26 @@ export class PlaybackController {
 		this.duration = engine.duration
 
 		if (this.playing) {
-			void engine.play()
+			this.#playEngine(engine)
 		}
+	}
+
+	/**
+	 * Starts engine playback, handling rejections (CONTRACTS.md §14): a play
+	 * rejected by the browser (e.g. NotAllowedError from a hidden page) must
+	 * not surface as an unhandled rejection or leave a false `playing=true`.
+	 */
+	#playEngine(engine: AudioEngine): void {
+		engine.play().catch((error: unknown) => {
+			console.error('[audio] engine play failed:', error)
+
+			// Only the still-current engine may clear the flag: a stale
+			// rejection from an already replaced engine must not stop the
+			// track that is actually playing now.
+			if (this.#current.status === 'ready' && this.#current.engine === engine) {
+				this.playing = false
+			}
+		})
 	}
 
 	#teardown(transition: Readonly<EngineState>) {

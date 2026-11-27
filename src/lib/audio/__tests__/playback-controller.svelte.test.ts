@@ -115,6 +115,7 @@ const setup = (opts: { gaplessEnabled?: boolean } = {}) => {
 
 	return {
 		controller,
+		graph,
 		onTrackEnded,
 		onError,
 		trackLoader,
@@ -267,6 +268,89 @@ describe('PlaybackController', () => {
 			expect(mockCreateHTMLAudioEngine).toHaveBeenCalledWith(
 				expect.objectContaining({ playbackRate: 1.5, preservePitch: false }),
 			)
+		})
+	})
+
+	describe('engine play() rejections (CONTRACTS.md §14)', () => {
+		it('sets playing=false when the engine play() rejects on a hidden page', async () => {
+			const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+			using s = setup()
+			const engine = makeHTMLEngine()
+			engine.play.mockRejectedValue(new DOMException('play() failed', 'NotAllowedError'))
+			mockCreateHTMLAudioEngine.mockResolvedValue(engine)
+			s.seedTrack(1)
+
+			await s.controller.play(1)
+			await new Promise((resolve) => setTimeout(resolve, 0))
+
+			expect(s.controller.playing).toBe(false)
+			expect(errorSpy).toHaveBeenCalledOnce()
+			errorSpy.mockRestore()
+		})
+
+		it('keeps playing=true when a stale rejection comes from an already replaced engine', async () => {
+			const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+			using s = setup()
+			const first = makeHTMLEngine()
+			let rejectFirstPlay!: (error: unknown) => void
+			first.play.mockImplementation(
+				() =>
+					new Promise<void>((_resolve, reject) => {
+						rejectFirstPlay = reject
+					}),
+			)
+			const second = makeHTMLEngine()
+			mockCreateHTMLAudioEngine.mockResolvedValueOnce(first).mockResolvedValueOnce(second)
+			s.trackLoader.mockImplementation((id) => Promise.resolve(makeLoadedResult(id)))
+
+			await s.controller.play(1)
+			expect(first.play).toHaveBeenCalledTimes(1)
+
+			await s.controller.play(2)
+			expect(second.play).toHaveBeenCalledTimes(1)
+			expect(s.controller.playing).toBe(true)
+
+			// The replaced engine's play() rejects late — it must not stop
+			// the track that is actually playing now.
+			rejectFirstPlay(new DOMException('play() failed', 'NotAllowedError'))
+			await new Promise((resolve) => setTimeout(resolve, 0))
+
+			expect(s.controller.playing).toBe(true)
+			expect(errorSpy).toHaveBeenCalledOnce()
+			errorSpy.mockRestore()
+		})
+
+		it('stops honestly when an external suspension cannot be resumed', async () => {
+			using s = setup()
+			const engine = makeHTMLEngine()
+			mockCreateHTMLAudioEngine.mockResolvedValue(engine)
+			s.seedTrack(1)
+
+			await s.controller.play(1)
+			expect(s.controller.playing).toBe(true)
+
+			// AudioGraph reports: the OS suspended the context (screen-off)
+			// and the browser refused to resume it without a fresh gesture.
+			s.graph.onInterruptionFailed?.()
+
+			expect(s.controller.playing).toBe(false)
+			expect(s.onError).toHaveBeenCalledWith('error')
+		})
+
+		it('ignores an interruption failure reported while already paused', async () => {
+			using s = setup()
+			const engine = makeHTMLEngine()
+			mockCreateHTMLAudioEngine.mockResolvedValue(engine)
+			s.seedTrack(1)
+
+			await s.controller.play(1)
+			s.controller.pause()
+			expect(s.controller.playing).toBe(false)
+
+			s.graph.onInterruptionFailed?.()
+
+			expect(s.controller.playing).toBe(false)
+			expect(s.onError).not.toHaveBeenCalled()
 		})
 	})
 

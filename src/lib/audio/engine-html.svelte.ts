@@ -95,8 +95,16 @@ export class HTMLAudioEngine implements AudioEngineImpl {
 		this.#updateAudioRate()
 	}
 
-	async play(): Promise<void> {
-		await this.#graph.resume()
+	play(): Promise<void> {
+		// Do not gate the media element on the AudioContext resume
+		// (CONTRACTS.md §14): on mobile with the screen off the browser can
+		// keep `context.resume()` pending (or reject it without a fresh user
+		// gesture), and awaiting it here meant `audio.play()` was never called
+		// — the next track never started and the `ended` chain died. The
+		// element must start regardless; it is routed through the graph, so
+		// sound appears as soon as the context actually resumes. The graph
+		// resume itself never rejects (AudioGraph logs transition failures).
+		void this.#graph.resume()
 		return this.#audio.play()
 	}
 

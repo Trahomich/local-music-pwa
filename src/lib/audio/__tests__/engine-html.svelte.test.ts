@@ -197,6 +197,19 @@ describe('HTMLAudioEngine', () => {
 			expect(graph.resume).toHaveBeenCalled()
 			expect(mockAudio.play).toHaveBeenCalled()
 		})
+
+		it('calls audio.play() without waiting for a pending graph.resume() (screen-off)', async () => {
+			const { engine, graph } = await makeEngine()
+			// Hidden page (CONTRACTS.md §14): the browser may keep
+			// AudioContext.resume() pending — the media element must still
+			// start so the ended → next-track chain stays alive.
+			vi.mocked(graph.resume).mockReturnValue(new Promise<void>(() => {}))
+
+			await engine.play()
+
+			expect(graph.resume).toHaveBeenCalledTimes(1)
+			expect(mockAudio.play).toHaveBeenCalledTimes(1)
+		})
 	})
 
 	describe('pause()', () => {
